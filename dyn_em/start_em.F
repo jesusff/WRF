@@ -1015,6 +1015,15 @@ endif
 
    DO ij = 1, grid%num_tiles
 
+         if(grid%dx.lt.1500)then
+             if(ims.ge.45.and.ime.lt.45)then
+             if(jms.ge.45.and.jme.lt.45)then
+                  write(*,*)'before start_em',grid%frc_urb2d(45,45),grid%ivgtyp(45,45)
+             endif
+             endif
+        endif
+
+
      CALL phy_init (  grid%id , config_flags, grid%DT, grid%RESTART, grid%znw, grid%znu,   &
                       grid%p_top, grid%tsk, grid%RADT,grid%BLDT,grid%CUDT, MPDT, &
                       grid%rucuten, grid%rvcuten, grid%rthcuten,             &

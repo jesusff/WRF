@@ -348,7 +348,6 @@ MODULE module_bl_boulac
                    dlg1D,dl_u1D,sf1D,vl1D,dlk1D,dls1D,exch1D,sh1D,bu1D,gamma1D)                    
 
          
-
 ! store turbulent exchange coefficients, TKE, and other variables
          
          do iz= kts,kte
@@ -430,6 +429,10 @@ MODULE module_bl_boulac
 ! compute the tendencies
                              
          do iz= kts,kte
+!           if(th1D(iz).ne.th1D(iz))then
+!             write(*,*)'th not a number in boulac',ix,iy,iz,hfx(ix,iy),exch1D(iz),b_t1D(iz),sf1D(iz),vl1D(iz)
+!             stop
+!           endif
           rthblten(ix,iz,iy)=(th1D(iz)-th_phy(ix,iz,iy))/dt
           rqvblten(ix,iz,iy)=(q1D(iz)-qv_curr(ix,iz,iy))/dt
           rqcblten(ix,iz,iy)=(qc1D(iz)-qc_curr(ix,iz,iy))/dt
@@ -532,6 +535,7 @@ MODULE module_bl_boulac
 ! compute the turbulent diffusion coefficients exch
 
        call cdtur_bougeault(ix,iy,kms,kme,kts,kte,te,z,dz,exch,dlk)
+
 
 ! compute source and sink terms in the TKE equation (shear, buoyancy and dissipation)
        
@@ -656,7 +660,6 @@ MODULE module_bl_boulac
        real fact
 
        exch(kts)=0.
-
 !       do iz=2,nz-1
        do iz=kts+1,kte
         te_m=(te(iz-1)*dz(iz)+te(iz)*dz(iz-1))/(dz(iz)+dz(iz-1))

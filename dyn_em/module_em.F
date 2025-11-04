@@ -915,18 +915,19 @@ SUBROUTINE rk_tendency ( config_flags, rk_step,                           &
                                        ids, ide, jds, jde, kds, kde,  &
                                        ims, ime, jms, jme, kms, kme,  &
                                        its, ite, jts, jte, kts, kte )
-
-      CALL sixth_order_diffusion( 'm', t,  t_tendf, mut, dt,          &
-                                       config_flags, c1h, c2h,        &
-                                       diff_6th_opt, diff_6th_factor, &
-                                       phb, ph,                       &
-                                       rdx, rdy,                      &
-                                       msftx, msfty,                  &
-                                       msfux, msfuy,                  &
-                                       msfvx, msfvy,                  &
-                                       ids, ide, jds, jde, kds, kde,  &
-                                       ims, ime, jms, jme, kms, kme,  &
-                                       its, ite, jts, jte, kts, kte )
+!Alberto no 6th order diffusion for temperature
+! See iMartilli et al (2021), Atmosph. Res. 263, 105789
+!      CALL sixth_order_diffusion( 'm', t,  t_tendf, mut, dt,          &
+!                                       config_flags, c1h, c2h,        &
+!                                       diff_6th_opt, diff_6th_factor, &
+!                                       phb, ph,                       &
+!                                       rdx, rdy,                      &
+!                                       msftx, msfty,                  &
+!                                       msfux, msfuy,                  &
+!                                       msfvx, msfvy,                  &
+!                                       ids, ide, jds, jde, kds, kde,  &
+!                                       ims, ime, jms, jme, kms, kme,  &
+!                                       its, ite, jts, jte, kts, kte )
 
     ENDIF
 

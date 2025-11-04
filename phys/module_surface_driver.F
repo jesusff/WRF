@@ -271,6 +271,9 @@ CONTAINS
      &          ,num_urban_hi                                         & !multi-layer urban
      &          ,use_wudapt_lcz                                       & !wudapt
      &          ,tsk_rural                                            & !multi-layer urban
+!TSK_SAT
+     &          ,tsk_sat                                            & !multi-layer urban
+!TSK_SAT
      &          ,trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d              & !multi-layer urban
      &          ,tlev_urb3d,qlev_urb3d                                & !multi-layer urban
      &          ,tw1lev_urb3d,tw2lev_urb3d                            & !multi-layer urban
@@ -293,6 +296,9 @@ CONTAINS
      &          ,sf_bep,vl_bep                                        &
      &          ,a_e_bep,b_e_bep,dlg_bep                              &
      &          ,dl_u_bep                                             &                          
+     &          ,tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23            & ! WRF COMFORT
+     &          ,comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf                       & ! WRF COMFORT
+     &          ,ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz          & ! WRF COMFORT
      &          ,tsk_save                                             & !for fractional seaice
      &          ,cldfra                                               & !ssib
      &          ,sf_surface_mosaic,mosaic_cat,mosaic_cat_index                                    & !danli mosaic
@@ -954,6 +960,9 @@ CONTAINS
    INTEGER, INTENT(IN )::   NUM_URBAN_HI
    INTEGER, INTENT(IN )::   use_wudapt_lcz
    REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ), INTENT(INOUT) :: tsk_rural
+!TSK_SAT
+   REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ), INTENT(INOUT) :: tsk_sat
+!TSK_SAT
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zrd, jms:jme ), INTENT(INOUT) :: trb_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zwd, jms:jme ), INTENT(INOUT) :: tw1_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zwd, jms:jme ), INTENT(INOUT) :: tw2_urb4d
@@ -1011,6 +1020,24 @@ CONTAINS
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::dlg_bep   !Height above ground
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::sf_bep  !Fraction air at the face of grid cell
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::dl_u_bep  !Length scale
+! WRF COMFORT - start
+   INTEGER , INTENT(IN)        ::     num_urban_ncomf,num_urban_nz
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_11
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_12
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_13
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_21
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_22
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_23
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::comf_10
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::comf_50
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) ::comf_90
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) :: lp_comf
+   real,optional,dimension( ims:ime,1:num_urban_ncomf, jms:jme ), INTENT(INOUT) :: hist_comf
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) :: ws_urb2d
+   real,optional,dimension( ims:ime, jms:jme ), INTENT(INOUT) :: bs_urb2d
+   real,optional,dimension( ims:ime,1:num_urban_nz, jms:jme ), INTENT(INOUT) :: hbuild_urb3d
+! WRF COMFORT - end
+
 
 !  arguments for Ocean Mixed Layer Model
    REAL, DIMENSION( ims:ime , jms:jme ), OPTIONAL, INTENT(INOUT )::   TML, T0ML, HML, H0ML, HUML, HVML
@@ -2804,7 +2831,13 @@ CONTAINS
                    tslb_tmp, smois_tmp, num_soil_layers, i_start(ij), i_end(ij), j_start(ij), j_end(ij), ims, &
                    ime, jms, jme, kms, kme, kts, kte)
                end if
-
+!Alberto
+               do i=ims,ime
+               do j=jms,jme
+                if(dx.lt.1500.and.i.eq.45.and.j.eq.45)write(*,*)'in surface_driver',frc_urb2d(i,j)
+               enddo
+               enddo
+!
                CALL lsm(dz8w,qv_curr,p8w,t_phy,tsk,                 &
                 hfx,qfx,lh,grdflx,qgh,gsw,swdown,swddir,swddif,     &
                 glw,smstav,smstot,    &
@@ -2866,6 +2899,9 @@ CONTAINS
                 urban_map_zgrd,                                 & !I multi-layer urban
                 num_urban_hi,                                   & !I multi-layer urban
                 tsk_rural,                                      & !H multi-layer urban
+!TSK_SAT
+                tsk_sat,                                        &
+!TSK_SAT
                 trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,        & !H multi-layer urban
                 tlev_urb3d,qlev_urb3d,                          & !H multi-layer urban
                 tw1lev_urb3d,tw2lev_urb3d,                      & !H multi-layer urban
@@ -2885,7 +2921,11 @@ CONTAINS
                 a_u_bep,a_v_bep,a_t_bep,a_q_bep,                & !O multi-layer urban
                 a_e_bep,b_u_bep,b_v_bep,                        & !O multi-layer urban
                 b_t_bep,b_q_bep,b_e_bep,dlg_bep,                & !O multi-layer urban
-                dl_u_bep,sf_bep,vl_bep                          & !O multi-layer urban
+                dl_u_bep,sf_bep,vl_bep,                          & !O multi-layer urban
+                tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23,      &!WRF COMFORT
+                comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf,      &!WRF COMFORT
+                ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz, & ! WRF COMFORT
+                history_interval      &!WRF COMFORT
 #ifdef WRF_HYDRO
                 ,sfcheadrt,INFXSRT, soldrain                    &
 #endif
@@ -3127,7 +3167,7 @@ CONTAINS
                 SWDDIF,     GLW,                                              &
 		    P8W,   RAINBL,       SR,                                  &
 		IRFRACT,  SIFRACT,  MIFRACT,  FIFRACT,                        &
-                    TSK,      HFX,      QFX,       LH,    GRDFLX,     SMSTAV, &
+                    TSK,     HFX,      QFX,       LH,    GRDFLX,     SMSTAV, &
 		 SMSTOT,SFCRUNOFF, UDRUNOFF,   ALBEDO,     SNOWC,      SMOIS, &
 		   SH2O,     TSLB,     SNOW,    SNOWH,    CANWAT,     ACSNOM, &
 		 ACSNOW,    EMISS,     QSFC,                                  &
@@ -3175,7 +3215,9 @@ CONTAINS
                               T_PHY,        QV_CURR,          U_PHY,      V_PHY,   SWDOWN,  & ! IN : Forcing
                              SWDDIR,         SWDDIF,                                        &
 		                GLW,            P8W,         RAINBL,       DZ8W,      ZNT,  & ! IN : Forcing
-                                TSK,            HFX,            QFX,         LH,   GRDFLX,  & ! IN/OUT : LSM 
+!TSK_SAT
+                                TSK,      TSK_RURAL, TSK_SAT,      HFX,            QFX,         LH,   GRDFLX,  & ! IN/OUT : LSM 
+!TSK_SAT
 		             ALBEDO,          EMISS,           QSFC,                        & ! IN/OUT : LSM 
                             ids,ide,        jds,jde,        kds,kde,                        &
                             ims,ime,        jms,jme,        kms,kme,                        &
@@ -3222,7 +3264,12 @@ CONTAINS
                             a_u_bep,        a_v_bep,        a_t_bep,    a_q_bep,            & !O multi-layer urban
                             a_e_bep,        b_u_bep,        b_v_bep,                        & !O multi-layer urban
                             b_t_bep,        b_q_bep,        b_e_bep,    dlg_bep,            & !O multi-layer urban
-                           dl_u_bep,         sf_bep,         vl_bep)                          !O multi-layer urban
+                           dl_u_bep,         sf_bep,         vl_bep,                        & !O multi-layer urban
+                           tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23, & !WRF COMFORT
+                           comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf, & !WRF COMFORT
+                           ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz, & !WRF COMFORT
+                           history_interval) !WRF COMFORT
+
 	 
 	 ENDIF 
 

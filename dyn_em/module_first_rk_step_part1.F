@@ -588,7 +588,13 @@ BENCH_START(surf_driver_tim)
       do_meganfile = .false.
 #endif
 
-
+          if(grid%dx.lt.1500.)then
+             if(ims.le.45.and.ime.ge.45)then
+             if(jms.le.45.and.jme.ge.45)then
+              write(*,*)'before surface_driver',grid%frc_urb2d(45,45)
+             endif
+             endif
+          endif
 
       CALL surface_driver(                                                &
      &        HYDRO_dt=HYDRO_dt,  sfcheadrt=grid%sfcheadrt,               &
@@ -811,6 +817,9 @@ BENCH_START(surf_driver_tim)
      &        ,NUM_URBAN_HI=config_flags%num_urban_hi                     & !multi-layer urban
      &        ,use_wudapt_lcz=config_flags%use_wudapt_lcz                 & !wudapt
      &        ,TSK_RURAL=grid%tsk_rural                                   & !multi-layer urban
+!TSK_SAT
+     &        ,TSK_SAT=grid%tsk_sat                                   & !multi-layer urban
+!TSK_SAT
      &        ,TRB_URB4D=grid%trb_urb4d,TW1_URB4D=grid%tw1_urb4d          & !multi-layer urban
      &        ,TW2_URB4D=grid%tw2_urb4d,TGB_URB4D=grid%tgb_urb4d          & !multi-layer urban
      &        ,TLEV_URB3D=grid%tlev_urb3d                               & !multi-layer urban
@@ -844,6 +853,13 @@ BENCH_START(surf_driver_tim)
      &        ,LFG_URB3D=grid%lfg_urb3d                                   & !GRZ
      &        ,LP_URB2D=grid%lp_urb2d,HI_URB2D=grid%hi_urb2d              & !multi-layer urban
      &        ,LB_URB2D=grid%lb_urb2d,HGT_URB2D=grid%hgt_urb2d            & !multi-layer urban
+     &        ,TMR_11=grid%tmr_11,TMR_12=grid%tmr_12,TMR_13=grid%tmr_13   & !WRF COMFORT
+     &        ,TMR_21=grid%tmr_21,TMR_22=grid%tmr_22,TMR_23=grid%tmr_23  &  !WRF COMFORT
+     &        ,COMF_10=grid%comf_10,COMF_50=grid%comf_50,COMF_90=grid%comf_90 & ! WRF COMFORT
+     &        ,LP_COMF=grid%lp_comf,HIST_COMF=grid%hist_comf                  & !WRF COMFORT
+     &        ,num_urban_ncomf = config_flags%num_urban_ncomf                 & !cwWRF COMFORT
+     &        ,WS_URB2D=grid%ws_urb2d,BS_URB2D=grid%bs_urb2d,HBUILD_URB3D=grid%hbuild_urb3d & !WRF COMFORT
+     &        ,num_urban_nz=config_flags%num_urban_nz                     & !WRF COMFORT
      &        ,MH_URB2D=grid%mh_urb2d,STDH_URB2D=grid%stdh_urb2d          & !SLUCM
      &        ,LF_URB2D=grid%lf_urb2d                                           & 
      &        ,GMT=grid%gmt,XLAT=grid%xlat,XLONG=grid%xlong,JULDAY=grid%julday  &

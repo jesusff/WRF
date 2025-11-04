@@ -110,6 +110,14 @@
          
          INTEGER FUNCTION bep_bem_ngr_u()
          END FUNCTION bep_bem_ngr_u
+!WRF_COMF start
+         INTEGER FUNCTION bep_bem_ncomf()
+         END FUNCTION bep_bem_ncomf
+         INTEGER FUNCTION bep_bem_nz()
+         END FUNCTION bep_bem_nz
+!WRF_COMF end
+
+
 
       END INTERFACE
 
@@ -483,6 +491,10 @@
            model_config_rec % num_urban_ngb  = bep_bem_ngb_u()
            model_config_rec % num_urban_nbui = bep_bem_nbui_max()
            model_config_rec % num_urban_ngr  = bep_bem_ngr_u()
+!WRF COMF start
+           model_config_rec % num_urban_ncomf  = bep_bem_ncomf()
+           model_config_rec % num_urban_nz  = bep_bem_nz()
+!WRF COMF end
 
          END IF
       ENDDO
@@ -3253,6 +3265,9 @@
         model_config_rec%urban_map_zgrd = model_config_rec%num_urban_ndm * &
                                           model_config_rec%num_urban_ngr  * &
                                           model_config_rec%num_urban_nz
+!WRF_COMF start
+!        model_config_rec%urban_map_ncomf = model_config_rec%num_urban_ncomf 
+!WRF_COMF end
 
       END IF     
       

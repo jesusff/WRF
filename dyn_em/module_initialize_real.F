@@ -3105,6 +3105,12 @@ integer::oops1,oops2
                    (grid%ivgtyp(i,j)==24 .OR. grid%ivgtyp(i,j)==25 .OR. grid%ivgtyp(i,j)==26 .OR. grid%ivgtyp(i,j)==13) ) grid%FRC_URB2D(i,j) = 0.9
                  IF ( MMINLU == 'USGS' .AND. grid%ivgtyp(i,j)==1 ) grid%FRC_URB2D(i,j) = 0.9
               ENDIF
+!Alberto - change to avoid class 13, which is urban class not coming from WUDAPT
+                  if(grid%ivgtyp(i,j).eq.13)then
+                    grid%ivgtyp(i,j)=9
+                    grid%frc_urb2d(i,j)=0.
+                  endif
+
                IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE 
                grid%LP_URB2D(i,j)  = grid%URB_PARAM(i,91,j)
                grid%LB_URB2D(i,j)  = grid%URB_PARAM(i,95,j)

@@ -70,7 +70,7 @@ use module_wrf_error
 !  Constant used in the BEP module
 ! -----------------------------------------------------------------------
            
-      real vk                 ! von Karman constant
+              real vk                 ! von Karman constant
       real g_u                ! Gravity acceleration
       real pi                 !
       real r                  ! Perfect gas constant
@@ -81,6 +81,18 @@ use module_wrf_error
       real latent             ! Latent heat of vaporization [J/kg] (used in BEM)
       real dgmax              ! Maximum ground water holding capacity (mm)
       real drmax              ! Maximum ground roof holding capacity (mm)
+! WRF COMFORT
+      integer npos
+      parameter (npos=3)
+      real zman
+      parameter (zman=1.8)
+      integer ncomf
+      parameter (ncomf=10)
+      real ranges_set(ncomf+1),ranges_utci(ncomf+1)
+      data ranges_set/-100.,10.,14.5,17.5,22.2,25.6,30.,34.5,37.5,42.,100./
+      data ranges_utci/-100.,-40.,-27.,-13.,0.,9.,26.,32.,38.,46.,100./
+!WRF COMFORT
+
 
       parameter(vk=0.40,g_u=9.81,pi=3.141592653,r=287.,cp_u=1004.)        
       parameter(rcp_u=r/cp_u,sigma=5.67e-08,p0=1.e+5,latent=2.45e+06,dgmax=1.,drmax=1.)
@@ -116,7 +128,15 @@ use module_wrf_error
                       lp_urb2d,hi_urb2d,lb_urb2d,hgt_urb2d,                        &
                       a_u,a_v,a_t,a_e,b_u,b_v,                                     &
                       b_t,b_e,b_q,dlg,dl_u,sf,vl,                                  &
-                      rl_up,rs_abs,emiss,grdflx_urb,qv_phy,                        &
+!TSK_SAT
+                      rl_up,rl_sat,rs_abs,emiss,grdflx_urb,qv_phy,                        &
+!TSK_SAT
+! WRF COMFORT start
+                      tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23,                   &
+                      comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf,                             &
+                      ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz,                 &
+                      history_interval,                                            &
+! WRF COMFORT end
                       ids,ide, jds,jde, kds,kde,                                   &
                       ims,ime, jms,jme, kms,kme,                                   &
                       its,ite, jts,jte, kts,kte)                    
@@ -147,7 +167,7 @@ use module_wrf_error
    REAL, DIMENSION( ims:ime , jms:jme )        ::   swddif
     REAL, DIMENSION( ims:ime, jms:jme )         ::   UST
    INTEGER, DIMENSION( ims:ime , jms:jme ), INTENT(IN )::   UTYPE_URB2D
-   REAL, DIMENSION( ims:ime , jms:jme ), INTENT(IN )::   FRC_URB2D
+   REAL, DIMENSION( ims:ime , jms:jme ), INTENT(INOUT)::   FRC_URB2D
    REAL, INTENT(IN  )   ::                                   GMT 
    INTEGER, INTENT(IN  ) ::                               JULDAY
    REAL, DIMENSION( ims:ime, jms:jme ),                           &
@@ -212,6 +232,17 @@ use module_wrf_error
    REAL, DIMENSION( ims:ime,jms:jme), INTENT(IN) :: lp_urb2d
    REAL, DIMENSION( ims:ime,jms:jme), INTENT(IN) :: lb_urb2d
    REAL, DIMENSION( ims:ime,jms:jme), INTENT(IN) :: hgt_urb2d
+!WRF COMFORT start
+   INTEGER, INTENT(IN  ) :: num_urban_ncomf,num_urban_nz
+   REAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23
+   REAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: comf_10,comf_50,comf_90,lp_comf
+   REAL, DIMENSION( ims:ime, 1:num_urban_ncomf,jms:jme ), INTENT(INOUT) :: hist_comf
+   REAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: ws_urb2d,bs_urb2d 
+   REAL, DIMENSION( ims:ime, 1:num_urban_nz,jms:jme ), INTENT(INOUT) :: hbuild_urb3d 
+   real hist_comf1D(ncomf),hbuild1D(nz_um)
+   INTEGER, INTENT(IN) :: history_interval
+!WRF COMFORT end
+
 
    real z(ims:ime,kms:kme,jms:jme)            ! Vertical coordinates
    REAL, INTENT(IN )::   DT      ! Time step
@@ -238,6 +269,9 @@ use module_wrf_error
       real vl(ims:ime,kms:kme,jms:jme)             ! volume of the urban grid cells
 ! urban fluxes
       real rl_up(its:ite,jts:jte) ! upward long wave radiation
+!TSK_SAT
+      real rl_sat(its:ite,jts:jte) ! upward long wave radiation
+!TSK_SAT
       real rs_abs(its:ite,jts:jte) ! absorbed short wave radiation
       real emiss(its:ite,jts:jte)  ! emissivity averaged for urban surfaces
       real grdflx_urb(its:ite,jts:jte)  ! ground heat flux for urban areas
@@ -324,6 +358,16 @@ use module_wrf_error
       real fsw_u(nz_um,ndm,nurbmax)             !  from sky to wall
       real fws_u(nz_um,ndm,nurbmax)             !  from sky to wall
       real fsg_u(ndm,nurbmax)                   !  from sky to ground
+!WRF COMFORT start
+!   mrw_dir,mrg_dir,mrs_dir are the view factors used to compute the long wave
+!   and the short wave contributions for the mean radiant temperature for
+!   different positions
+      real mrw_dir(nz_um,2*ndm,npos)         !  from wall
+      real mrg_dir(2*ndm,npos)               !  from ground
+      real mrs_dir(2*ndm,npos)               !  from sky
+      real xpos(ndm,npos)
+!WRF COMFORT end
+
 
 !    Roughness parameters
       real z0g_u(nurbmax)       ! The ground's roughness length
@@ -447,6 +491,11 @@ use module_wrf_error
       real dl_u1D(kms:kme)              ! Length scale (lb in formula (22) ofthe BLM paper)
       real gfr1D(ndm,nz_um)
       real time_bep
+! WRF COMFORT start
+      integer therm_comf_u
+      real met_comf_u,clo_comf_u,wme_comf_u
+      real height_comf_u,weight_comf_u
+! WRF COMFORT end
 ! arrays used to collapse indexes
       integer ind_zwd(nbui_max,nz_um,nwr_u,ndm)
       integer ind_gd(ng_u,ndm)
@@ -705,16 +754,32 @@ use module_wrf_error
 
       endif ! first
 
-do ix=its,ite
+      do ix=its,ite
       do iy=jts,jte
+! WRF COMFORT start
+        comf_10(ix,iy)=-999.
+        comf_50(ix,iy)=-999.
+        comf_90(ix,iy)=-999.
+        lp_comf(ix,iy)=-999.
+        hist_comf(ix,:,iy)=0.
+! WRF COMFORT end
+        if(FRC_URB2D(ix,iy).gt.0.and.UTYPE_URB2D(ix,iy).eq.0)FRC_URB2D(ix,iy)=0.
         if (FRC_URB2D(ix,iy).gt.0.) then    ! Calling BEP only for existing urban classes.
 	
          iurb=UTYPE_URB2D(ix,iy)
+! WRF COMFORT start
+        therm_comf_u=therm_comf_tbl
+        met_comf_u=met_comf_tbl(iurb)
+        clo_comf_u=clo_comf_tbl(iurb)
+        wme_comf_u=wme_comf_tbl(iurb)
+        height_comf_u=height_comf_tbl(iurb)
+        weight_comf_u=weight_comf_tbl(iurb)
+        hist_comf1D(:)=0.
+! WRF COMFORT end
 
          hi_urb1D=0.
          do iz_u=1,nz_um
             hi_urb1D(iz_u)=hi_urb(ix,iz_u,iy)
-           
          enddo
 
          call icBEPHI_XY(iurb,hb_u,hi_urb1D,ss_urb,pb_urb,    &
@@ -728,13 +793,17 @@ do ix=its,ite
                     pb_urb,pb,dzw,dzr,dzf,csf,alaf,dzgb,csgb,alagb,  &
                     lp_urb2d(ix,iy),lb_urb2d(ix,iy),                 &
                     hgt_urb2d(ix,iy),FRC_URB2D(ix,iy))
+
+          !write(78,'(3(1x,i4),30(ix,f8.3))')ix,iy,frc_urb2d(ix,iy),ws(1),bs(1),(ss(iz),iz=1,nz_um)
          
 !
 !We compute the view factors in the icBEP_XY routine
 !  
 
          call icBEP_XY(iurb,fww_u,fwg_u,fgw_u,fsw_u,fws_u,fsg_u,   &
-                         nd_u(iurb),strd,ws,nzurban(iurb),z_u)   
+                         nd_u(iurb),strd,ws,nzurban(iurb),z_u, &
+                          mrw_dir,mrg_dir,mrs_dir,xpos ) ! WRF COMFORT
+
 
          ibui=0
          nlev=0
@@ -921,6 +990,7 @@ do iz= kts,kte
          deltar1D=DECLIN_URB
          ah1D=OMG_URB2D(ix,iy)
          
+                if(dt.lt.3.and.ix.eq.45.and.iy.eq.45)write(*,*)'in bep_bem',frc_urb2d(ix,iy)
 
          call BEP1D(itimestep,ix,iy,iurb,kms,kme,kts,kte,z1D,dt,ua1D,va1D,pt1D,da1D,pr1D,pt01D,  &
                    zr1D,deltar1D,ah1D,rs1D,rld1D,alagb,             & 
@@ -942,10 +1012,28 @@ do iz= kts,kte
                    drain1D,rainbl(ix,iy),qr1D,                   &
                    a_u1D,a_v1D,a_t1D,a_e1D,                         & 
                    b_u1D,b_v1D,b_t1D,b_ac1D,b_e1D,b_q1D,            & 
-                   dlg1D,dl_u1D,sf1D,vl1D,rl_up(ix,iy),             &
+!TSK_SAT
+                   dlg1D,dl_u1D,sf1D,vl1D,rl_up(ix,iy),rl_sat(ix,iy),             &
+!TSK_SAT
                    rs_abs(ix,iy),emiss(ix,iy),grdflx_urb(ix,iy),    &
                    qv1D,tlev1D,qlev1D,sflev1D,lflev1D,consumlev1D,  &
-                   eppvlev1D,tpvlev1D,sfvlev1D,lfvlev1D,twlev1D,tglev1D,tflev1D,sfwin1D,tair1D,sfr_indoor1D,sfrpv1D,gfr1D) 
+                   eppvlev1D,tpvlev1D,sfvlev1D,lfvlev1D,twlev1D,tglev1D, &
+                   tflev1D,sfwin1D,tair1D,sfr_indoor1D,sfrpv1D,gfr1D, &
+                   cooled_frc_u(iurb),bldac_frc_u(iurb), & 
+! WRF COMFORT start
+                   tmr_11(ix,iy),tmr_12(ix,iy),tmr_13(ix,iy), &
+                   tmr_21(ix,iy),tmr_22(ix,iy),tmr_23(ix,iy), &
+                   comf_10(ix,iy),comf_50(ix,iy),comf_90(ix,iy), &
+                   lp_comf(ix,iy), &
+                   mrw_dir,mrg_dir,mrs_dir,xpos,    &
+                   therm_comf_u,met_comf_u,clo_comf_u, &
+                   wme_comf_u,height_comf_u,weight_comf_u, &
+                   ws_urb2d(ix,iy),bs_urb2d(ix,iy),hbuild1D, &  
+                   history_interval,hist_comf1D)
+! WRF COMFORT end
+! WRF COMFORT start
+          hist_comf(ix,:,iy)=hist_comf1D(:)
+          hbuild_urb3d(ix,:,iy)=hbuild1D(:)
            
           do ibui=1,nbui_max !type of building
 	    do iz=1,nz_um   !vertical levels
@@ -1060,7 +1148,7 @@ do iz= kts,kte
          tgr_urb3d(ix,iy)=0.
          meso_urb=(1./4.)*FRC_URB2D(ix,iy)/((bs_urb(1,iurb)+ws_urb(1,iurb))*bs_urb(2,iurb))+ &
                   (1./4.)*FRC_URB2D(ix,iy)/((bs_urb(2,iurb)+ws_urb(2,iurb))*bs_urb(1,iurb))
-          meso_urb_ac=meso_urb*bldac_frc_u(iurb)*cooled_frc_u(iurb)
+          meso_urb_ac=meso_urb!*bldac_frc_u(iurb)*cooled_frc_u(iurb)
           roof_frac=FRC_URB2D(ix,iy)*bs_urb(1,iurb)/(bs_urb(1,iurb)+ws_urb(1,iurb))
          ibui=0
          nlev=0
@@ -1180,9 +1268,22 @@ do iz= kts,kte
                       sfrv,lfrv,dgr,dg,lfr,lfg,drain,rainbl,qr,      & 
                       a_u,a_v,a_t,a_e,                                 &
                       b_u,b_v,b_t,b_ac,b_e,b_q,                        & 
-                      dlg,dl_u,sf,vl,rl_up,rs_abs,emiss,grdflx_urb,    &
+!TSK_SAT
+                      dlg,dl_u,sf,vl,rl_up,rl_sat,rs_abs,emiss,grdflx_urb,    &
+!TSK_SAT
                       qv,tlev,qlev,sflev,lflev,consumlev,              &
-                      eppvlev,tpvlev,sfvlev,lfvlev,twlev,tglev,tflev,sfwin,tmp_u,sfr_indoor,sfrpv,gfr)    
+                      eppvlev,tpvlev,sfvlev,lfvlev,twlev,tglev,tflev, &
+                      sfwin,tmp_u,sfr_indoor,sfrpv,gfr, & 
+                      cooled_frc,bldac_frc, & 
+! WRF COMFORT start
+                      tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23, &
+                      comf_10,comf_50,comf_90,                   &
+                      lp_set, &
+                      mrw_dir,mrg_dir,mrs_dir,xpos, &
+                      therm_comf_u,met_comf_u,clo_comf_u,wme_comf_u, &
+                      height_comf_u,weight_comf_u,ws_opt,bs_opt,hbuild,history_interval,hist_comf)
+!WRF COMFORT end
+
         ! print*,'SFR_AFT',sfr(id,iz)
 
 
@@ -1214,6 +1315,7 @@ do iz= kts,kte
       real xlat                  ! Latitude
       real swddir                ! short wave direct solar radiation   !_gl
       real swddif                ! short wave diffuse solar radiation  !_gl
+      real cooled_frc,bldac_frc ! cooled fraction, and fraction of buildings with AC
 
 ! Data relative to the "urban grid"
 
@@ -1240,6 +1342,23 @@ do iz= kts,kte
       real fws(nz_um,ndm,nurbm)        !  from wall to sky
       real fsg(ndm,nurbm)              !  from sky to ground
       
+! WRF COMFORT start
+      real mrw_dir(nz_um,2*ndm,npos)         !  from wall
+      real mrg_dir(2*ndm,npos)               !  from ground
+      real mrs_dir(2*ndm,npos)               !  from sky
+      real xpos(ndm,npos)
+      real tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23
+      real tmr_dir(ndm,npos)
+      real comf_10,comf_50,comf_90,lp_set
+      real hist_comf(ncomf)
+      integer therm_comf_u
+      real met_comf_u,clo_comf_u,wme_comf_u, &
+                      height_comf_u,weight_comf_u
+      real ws_opt,bs_opt
+      real hbuild(nz_um)
+      integer history_interval,idump
+! WRF COMFORT
+
 !    Street parameters
       integer ndu                  ! Number of street direction for each urban class 
       real bs_u(ndm,nurbm)         ! Building width
@@ -1392,6 +1511,10 @@ do iz= kts,kte
 !
       real rs_abs ! solar radiation absorbed by urban surfaces 
       real rl_up ! longwave radiation emitted by urban surface to the atmosphere 
+!TSK_SAT
+      real rl_sat ! longwave radiation emitted by urban surface to the atmosphere as seen from the satellite 
+!TSK_SAT
+
       real emiss ! mean emissivity of the urban surface
       real grdflx_urb ! ground heat flux
       real dt_int ! internal time step
@@ -1527,7 +1650,6 @@ do iz= kts,kte
 
        tr_av(id,iz)=((1-gr_frac_roof)*tr(id,iz,nwr_u)**4.+   &
        gr_frac_roof*trv(id,iz,ngr_u)**4.)**(1./4.)
-
      enddo
      enddo
      
@@ -1543,6 +1665,52 @@ do iz= kts,kte
                     zr,deltar,ah,xlat,swddir,swddif,      &  !_gl  
                     rs,rld,rsw,rsd,rsg,rlw,rlg)  
 
+! WRF COMFORT start
+
+     ws_opt=ws(1)
+     bs_opt=bs(1)
+     hbuild(1:nz_um)=ss(1:nz_um)
+
+     idump = (history_interval * 60.) / dt
+     if(mod((itimestep),idump).eq.0)then
+         ! write(*,*)history_interval,itimestep,idump
+     if(therm_comf_u.gt.0)then
+         ! write(*,*)'therm_comf_u=',therm_comf_u
+         call modif_rad_mr(iurb,ndu,nzu,z_u,ws,drst,strd,ss,pb,    &
+                       tw_av,tg,twlev_av,albg,albw,emw, &
+                       emg,pwin_u(iurb),albwin,  &
+                       emwind,             &
+                       mrw_dir,mrg_dir,mrs_dir,xpos,             &
+                       zr,deltar,ah,xlat,                          &
+                       rs,rld,rsw,rsg,rlw,rlg,ix,iy,tmr_dir)
+
+         !call comf_calc_lp(therm_comf_u,met_comf_u,clo_comf_u, &
+         !              wme_comf_u,height_comf_u, &
+         !              weight_comf_u,ndm,npos,tmr_dir,ua_u(1),va_u(1), &
+         !              pt_u(1),pr_u(1),da_u(1),qv_u(1), &
+         !              ws,bs,                           &
+         !              comf_10,comf_50,comf_90, &
+         !              lp_set,ix,iy)
+         call comf_calc_lw(therm_comf_u,met_comf_u,clo_comf_u, &
+                       wme_comf_u,height_comf_u, &
+                       weight_comf_u,ndm,npos,tmr_dir,ua_u(1),va_u(1), &
+                       pt_u(1),pr_u(1),da_u(1),qv_u(1), &
+                       ws,bs,pb,                           &
+                       comf_10,comf_50,comf_90,hist_comf, &
+                       lp_set,ix,iy)
+
+            tmr_11=tmr_dir(1,1)
+            tmr_12=tmr_dir(1,2)
+            tmr_13=tmr_dir(1,3)
+            tmr_21=tmr_dir(2,1)
+            tmr_22=tmr_dir(2,2)
+            tmr_23=tmr_dir(2,3)
+     end if
+     end if
+
+
+! WRF COMFORT end
+
 
  
 
@@ -1554,7 +1722,7 @@ do iz= kts,kte
                        tw_av,emw,albw,rlw,rsw,sfw_av,             & 
                        tr_av,emr,albr,emwind,                        &
                        albwin,twlev_av,pwin_u(iurb),sfwind_av,rld,rs,sfr,sfrv,lfr,lfrv, & 
-                       rs_abs,rl_up,emiss,grdflx_urb,gr_frac_roof,tpvlev,pv_frac_roof)          
+                       rs_abs,rl_up,rl_sat,emiss,grdflx_urb,gr_frac_roof,tpvlev,pv_frac_roof)          
    
     do id=1,ndu
     if(dg(id).le.dgmax) then
@@ -1746,9 +1914,9 @@ do iz= kts,kte
            do iz=1,nz_um
              qlev(iz,ibui)=qlevb1D(iz)
              tlev(iz,ibui)=tlevb1D(iz)
-             sflev(iz,ibui)=sflev1D(iz)
-             lflev(iz,ibui)=lflev1D(iz)
-             consumlev(iz,ibui)=consumlev1D(iz)
+             sflev(iz,ibui)=sflev1D(iz)*cooled_frc*bldac_frc
+             lflev(iz,ibui)=lflev1D(iz)*cooled_frc*bldac_frc
+             consumlev(iz,ibui)=consumlev1D(iz)*cooled_frc*bldac_frc
              sfvlev(iz,ibui)=sfvlev1D(iz)
              lfvlev(iz,ibui)=lfvlev1D(iz)
            enddo
@@ -1864,7 +2032,8 @@ do iz= kts,kte
 
 ! Calculation of the length scale taking into account the buildings effects
 
-      call interp_length(ndu,kms,kme,kts,kte,nzu,z_u,z,ss,ws,bs,dlg,dl_u)
+     ! call interp_length(ndu,kms,kme,kts,kte,nzu,z_u,z,ss,ws,bs,dlg,dl_u)
+      call interp_length_blm2010(ndu,kms,kme,kts,kte,nzu,z_u,z,ss,ws,bs,dlg,dl_u)
       
       return
       end subroutine BEP1D
@@ -3200,6 +3369,84 @@ do iz= kts,kte
        end subroutine interp_length
 
 ! ===6=8===============================================================72
+      subroutine interp_length_blm2010(nd,kms,kme,kts,kte,nz_u,z_u,z,ss,ws,bs, &
+                             dlg,dl_u)
+
+! ----------------------------------------------------------------------
+!    Calculation of the length scales
+!     BLM2010 paper
+! ----------------------------------------------------------------------
+
+      implicit none
+
+
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      integer kms,kme,kts,kte
+      real z(kms:kme)              ! Altitude above the ground of the cell interface
+      integer nd                ! Number of street direction for the current urban class
+      integer nz_u              ! Number of levels in the "urban grid"
+      real z_u(nz_um)         ! Height of the urban grid levels
+      real bs(ndm)              ! Building widths of the current urban class
+      real ss(nz_um)          ! Probability to have a building with height h
+      real ws(ndm)              ! Street widths of the current urban class
+
+
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+      real dlg(kms:kme)              ! Height above ground (L_ground in formula(24) of the BLM paper).
+      real dl_u(kms:kme)             ! Length scale (lb in formula (22) ofthe BLM paper).
+
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+      real dlgtmp
+      integer id,iz,iz_u
+      real sftot
+      real bh,alp,alpha1,disp,zm
+
+! ----------------------------------------------------------------------
+! END VARIABLES DEFINITIONS
+! ----------------------------------------------------------------------
+! calculation of the mean buiding height bh
+
+         dl_u(:)=0.
+
+         bh=0.
+         do id=1,nd
+          do iz_u=2,nz_u
+            bh=bh+ss(iz_u)*z_u(iz_u)/nd
+          enddo
+         enddo
+! calcaulation of the lambda_p alp
+        alp=0.
+        do id=1,nd
+         alp=alp+bs(id)/(ws(id)+bs(id))/nd
+        enddo
+! calculation of the displacement height
+        disp=bh*(alp**0.13)
+! calculation of the length scale
+       alpha1=2.24/1.4
+
+        do iz=kts,kte
+         zm=(z(iz)+z(iz+1))/2.
+         if(zm.lt.bh)then
+          dlg(iz)=alpha1*(bh-disp)
+! impose a min to the lengthscale with ehight above ground
+          dlg(iz)=min(zm,dlg(iz))
+         elseif(zm.ge.bh.and.zm.lt.1.5*bh)then
+          dlg(iz)=alpha1*(zm-disp)
+         else
+          dlg(iz)=zm-alpha1*(1.5*bh-disp)
+         endif
+        enddo
+
+
+       return
+       end subroutine interp_length_blm2010
+
 ! ===6=8===============================================================72   
 
       subroutine shadow_mas(nd,nz_u,zr,deltar,ah,drst,ws,ss,pb,z,    &
@@ -5220,7 +5467,9 @@ do iz= kts,kte
                        tw,emw_u,albw_u,rlw,rsw,sfw,                   & 
                        tr_av,emr_u,albr_u,emwind,albwind,twlev,pwin,     &
                        sfwind,rld,rs, sfr,sfrv,lfr,lfrv,                            & 
-                       rs_abs,rl_up,emiss,grdflx_urb,gr_frac_roof,tpvlev,pv_frac_roof)
+!TSK_SAT
+                       rs_abs,rl_up,rl_sat,emiss,grdflx_urb,gr_frac_roof,tpvlev,pv_frac_roof)
+!TSK_SAT
 !
 ! IN this surboutine we compute the upward longwave flux, and the albedo
 ! needed for the radiation scheme
@@ -5277,6 +5526,9 @@ do iz= kts,kte
 !OUTPUT/INPUT
       real rs_abs  ! absrobed solar radiationfor this street direction
       real rl_up   ! upward longwave radiation for this street direction
+!TSK_SAT
+      real rl_sat   ! upward longwave radiation for this street direction as seen from satellite
+!TSK_SAT
       real emiss ! mean emissivity
       real grdflx_urb ! ground heat flux 
 !LOCAL
@@ -5298,6 +5550,9 @@ do iz= kts,kte
            if(iwrong.eq.0)stop
 
       rl_up=0.
+!TSK_SAT
+      rl_sat=0.
+!TSK_SAT
  
       rs_abs=0.
       rl_inc=0.
@@ -5306,6 +5561,9 @@ do iz= kts,kte
       grdflx_urb=0.
       do id=1,ndu          
        rl_emit=rl_emit-( emg_u*sigma*(tg_av(id)**4.)+(1-emg_u)*rlg(id))*ws(id)/(ws(id)+bs(id))/ndu
+!TSK_SAT
+       rl_sat=rl_sat-  ( emg_u*sigma*(tg_av(id)**4.)+(1-emg_u)*rlg(id))*ws(id)/(ws(id)+bs(id))/ndu
+!TSK_SAT
        rl_inc=rl_inc+rlg(id)*ws(id)/(ws(id)+bs(id))/ndu       
        rs_abs=rs_abs+(1.-albg_u)*rsg(id)*ws(id)/(ws(id)+bs(id))/ndu
          gfl=(1.-albg_u)*rsg(id)+emg_u*rlg(id)-emg_u*sigma*(tg_av(id)**4.)+sfg(id)+lfg(id)
@@ -5314,6 +5572,10 @@ do iz= kts,kte
          do iz=2,nzu
              rl_emit=rl_emit-(emr_u*sigma*(1.-pv_frac_roof)*tr_av(id,iz)**4.+0.79*sigma*pv_frac_roof*tpvlev(id,iz)**4+ &
                      (1-emr_u)*rld*(1.-pv_frac_roof)+(1-0.79)*pv_frac_roof*rld)*ss(iz)*bs(id)/(ws(id)+bs(id))/ndu
+!TSK_SAT
+             rl_sat=rl_sat-(emr_u*sigma*(1.-pv_frac_roof)*tr_av(id,iz)**4.+0.79*sigma*pv_frac_roof*tpvlev(id,iz)**4+ &
+                     (1-emr_u)*rld*(1.-pv_frac_roof)+(1-0.79)*pv_frac_roof*rld)*ss(iz)*bs(id)/(ws(id)+bs(id))/ndu
+!TSK_SAT
              rl_inc=rl_inc+rld*ss(iz)*bs(id)/(ws(id)+bs(id))/ndu
              rs_abs=rs_abs+((1.-albr_u)*rs*(1.-pv_frac_roof)+(1.-0.11)*rs*pv_frac_roof)*ss(iz)*bs(id)/(ws(id)+bs(id))/ndu
              gfl=(1.-albr_u)*rs*(1-pv_frac_roof)+emr_u*rld*((1-pv_frac_roof)+pv_frac_roof*emr_u*sigma*tpvlev(id,iz)**4) &
@@ -5456,7 +5718,9 @@ do iz= kts,kte
 !====================================================================72  
 
       subroutine icBEP_XY(iurb,fww_u,fwg_u,fgw_u,fsw_u,             &
-                          fws_u,fsg_u,ndu,strd,ws,nzu,z_u)                               
+                          fws_u,fsg_u,ndu,strd,ws,nzu,z_u, &
+                          mrw_dir,mrg_dir,mrs_dir,xpos) ! WRF COMFORT
+
 
       implicit none       
         
@@ -5485,7 +5749,15 @@ do iz= kts,kte
       real fws_u(nz_um,ndm,nurbm)               !  from sky to wall
       real fsg_u(ndm,nurbm)                     !  from sky to ground
 
-! -----------------------------------------------------------------------
+! WRF COMFORT start
+!   mrw,mrg,mrs are the view factors used to compute the long wave
+!   and the short wave contributions for the mean radiant temperature
+      real mrw_dir(nz_um,2*ndm,npos)         !  from wall
+      real mrg_dir(2*ndm,npos)               !  from ground
+      real mrs_dir(2*ndm,npos)               !  from sky
+      real xpos(ndm,npos)
+! WRF COMFORT end
+
 !     Local
 !------------------------------------------------------------------------
 
@@ -5504,10 +5776,37 @@ do iz= kts,kte
       fws_u=0.
       fsg_u=0.
       
+! WRF COMFORT start
+! xpos is distance from Western wall in a N-S street, or from the Northern wall
+! in a E-W street
+         !xpos(1,1)=ws(1)*16.7/100.
+         xpos(1,1)=min(1.5,ws(1)/2.)
+         xpos(1,2)=ws(1)/2.
+         !xpos(1,3)=ws(1)*(100.-16.7)/100.
+         xpos(1,3)=max(ws(1)-1.5,ws(1)/2.)
+         !xpos(2,1)=ws(2)*16.7/100.
+         xpos(2,1)=min(1.5,ws(2)/2.)
+         xpos(2,2)=ws(2)/2.
+         !xpos(2,3)=ws(2)*(100.-16.7)/100.
+         xpos(2,3)=max(ws(2)-1.5,ws(2)/2.)
+         !write(*,*)'xpos 1',xpos(1,1),xpos(1,2),xpos(1,3),ws(1)
+         !write(*,*)'xpos 2',xpos(2,1),xpos(2,2),xpos(2,3),ws(2)
+         mrw_dir=0.
+         mrg_dir=0.
+         mrs_dir=0.
+
+! WRF COMFORT end
+
       do id=1,ndu
 
             call view_factors(iurb,nzu,id,strd(id),z_u,ws(id),  &    
                               fww_u,fwg_u,fgw_u,fsg_u,fsw_u,fws_u) 
+! WRF COMFORT start
+            call view_factors_mr_dir(id,iurb,nzu,strd(id),   &
+                            z_u,xpos,ws(id),                      &
+                            mrw_dir,mrg_dir,mrs_dir)
+! WRF COMFORT end
+
       
       enddo               
       return       
@@ -5633,6 +5932,1635 @@ do iz= kts,kte
        return
        end subroutine icBEPHI_XY
 !====================================================================72
+
+!WRF COMFORT start
+! ===6=8===============================================================72    
+
+      subroutine modif_rad_mr(iurb,nd,nz_u,z,ws,drst,strd,ss,pb,    &
+                          tw,tg,twlev,albg,albw,emw,emg,pwin,albwin,   &
+                          emwin,            &
+                          mrw_dir,mrg_dir,mrs_dir,xpos,             &
+                          zr,deltar,ah,xlat,                          &    
+                          rs,rl,rsw,rsg,rlw,rlg,ix,iy,tmr_dir)                       
+ 
+! ----------------------------------------------------------------------
+! This routine computes the modification of the short wave and 
+!  long wave radiation due to the buildings for the estimation of the 
+! mean radiant temperature for a man in the middle of the street
+! ----------------------------------------------------------------------
+
+      implicit none
+ 
+ 
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      integer iurb              ! current urban class
+      integer nd                ! Number of street direction for the current urban class
+      integer nz_u              ! Number of layer in the urban grid
+      real z(nz_um)           ! Height of the urban grid levels
+      real ws(ndm)              ! Street widths of the current urban class
+      real drst(ndm)            ! street directions for the current urban class
+      real strd(ndm)            ! Street lengths for the current urban class
+      real ss(nz_um)          ! probability to have a building with height h
+      real pb(nz_um)          ! probability to have a building with an height equal
+      real tw(2*ndm,nz_um)    ! Temperature in each layer of the wall [K]
+      real tg(ndm,ng_u)         ! Temperature in each layer of the ground [K]
+      real albg                 ! Albedo of the ground for the current urban class
+      real albw                 ! Albedo of the wall for the current urban class
+      real emg                  ! Emissivity of ground for the current urban class
+      real emw                  ! Emissivity of wall for the current urban class
+
+
+      real mrw_dir(nz_um,2*ndm,npos)       ! View factors from wall 
+      real mrg_dir(2*ndm,npos)             ! View factors from ground
+      real mrs_dir(2*ndm,npos)             ! View factors from sky
+      
+      real ah                   ! Hour angle (it should come from the radiation routine)
+      real zr                   ! zenith angle
+      real deltar               ! Declination of the sun
+      real xlat,xlat_r               ! latitude 
+      real rs                   ! solar radiation
+      real rl                   ! downward flux of the longwave radiation
+!
+!New variables BEM
+!
+      real twlev(2*ndm,nz_um)         ! Window temperature in BEM [K]
+      real pwin                       ! Coverage area fraction of windows in the walls of the buildings 
+      real albwin                     ! Albedo of the windows for the current urban class
+      real emwin                      ! Emissivity of the windows for the current urban class
+      real alb_av                     ! Averaged albedo (window and wall)
+      real rlg(ndm)             ! Long wave radiation at the ground
+      real rlw(2*ndm,nz_um)     ! Long wave radiation at the walls
+      real rsg(ndm)             ! Short wave radiation at the ground
+      real rsw(2*ndm,nz_um)     ! Short wave radiation at the walls
+     
+      real rl_down,rs_down 
+      
+      real time_bep
+!
+      integer ix,iy,idr,ipos
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+      real tmr_dir(ndm,npos)           ! mean radiant temperature
+      
+
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+
+      integer id,iz
+
+!
+      real rsm_dir(2*ndm,npos),rlm_dir(2*ndm,npos),rrm_dir(2*ndm,npos)
+
+!!! IMPORTANT. id=1 means looking at West, id=2, looking at East in a N-S road
+!!!            id=3 means looking at North, id=4 lookig at South in a E-W road
+!!!
+
+      real rsup_dir(2*ndm,npos)
+      real xpos(ndm,npos)
+      real st4,lmr,smr,gamma,fp,prova,smd,arg
+
+!  Calculation of the shadow effects
+
+      call shadow_mas_mr_boston(nd,nz_u,zr,deltar,ah,drst,ws,ss,pb,z,  &
+                     rs,rsm_dir,xpos,iurb,xlat)
+  
+       !write(93,*)rsm_dir(1,1),rsm_dir(2,1),rsm_dir(1,3),rsm_dir(2,3)
+       !write(*,*)'rsm',rsm_dir(1,1),rs
+
+  
+      call shadow_mas_mr_up(nd,nz_u,zr,deltar,ah,drst,ws,ss,pb,z,  &
+                      rs,rsup_dir,xpos,iurb)
+        
+       do id=1,2*ndm
+        do ipos=1,npos
+         rrm_dir(id,ipos)=0!rsm_dir(id,ipos)
+        enddo
+       enddo
+   
+! Calculation of the reflection effects          
+      do id=1,nd
+         call long_rad_mr(iurb,nz_u,id,emw,emg,emwin,pwin,twlev,      &
+                      mrw_dir,mrg_dir,mrs_dir,tg,tw,      &
+                      rlg,rlw,rl,pb,rlm_dir)
+         
+         alb_av=pwin*albwin+(1.-pwin)*albw
+
+         call short_rad_mr(iurb,nz_u,id,alb_av,albg, & 
+                      mrw_dir,mrg_dir,mrs_dir, & 
+                      rsg,rsw,pb,rrm_dir)
+      enddo
+
+      st4=0.
+      lmr=0.
+      smr=0. 
+      smd=0.   
+
+
+! let compute the mean radiant temperature!!
+      do id=1,ndm
+       rl_down=emg*sigma*(tg(id,ng_u)**4.)+(1-emg)*rlg(id)
+       rs_down=albg*rsg(id)
+       !write(*,*)rl_down,rs_down
+       do ipos=1,npos
+        lmr=0.88*(rlm_dir(2*id-1,ipos)+rlm_dir(2*id,ipos))/2.+0.06*rl+0.06*rl_down
+        smr=0.88*((rsm_dir(2*id-1,ipos)+rsm_dir(2*id,ipos))/2.+(rrm_dir(2*id-1,ipos)+rrm_dir(2*id,ipos))/2.)+0.06*(rsup_dir(2*id-1,ipos)+rsup_dir(2*id,ipos))/2.+0.06*rs_down
+        st4=lmr+0.7/0.97*smr
+        tmr_dir(id,ipos)=(st4/sigma)**.25
+       enddo
+      enddo
+        !write(82,'(12(1x,f12.6))')rsm_dir(1,1),rsm_dir(2,1), & 
+        !                          rsm_dir(1,2),rsm_dir(2,2), &
+        !                          rsm_dir(1,3),rsm_dir(2,3), &
+        !                          rsm_dir(3,1),rsm_dir(4,1), & 
+        !                          rsm_dir(3,2),rsm_dir(4,2), &
+        !                          rsm_dir(3,3),rsm_dir(4,3)
+        !write(83,'(12(1x,f12.6))')rrm_dir(1,1),rrm_dir(2,1), & 
+        !                          rrm_dir(1,2),rrm_dir(2,2), &
+        !                          rrm_dir(1,3),rrm_dir(2,3), &
+        !                          rrm_dir(3,1),rrm_dir(4,1), & 
+        !                          rrm_dir(3,2),rrm_dir(4,2), &
+        !                          rrm_dir(3,3),rrm_dir(4,3)
+        !write(84,'(12(1x,f12.6))')rlm_dir(1,1),rlm_dir(2,1), & 
+        !                          rlm_dir(1,2),rlm_dir(2,2), &
+        !                          rlm_dir(1,3),rlm_dir(2,3), &
+        !                          rlm_dir(3,1),rlm_dir(4,1), & 
+        !                          rlm_dir(3,2),rlm_dir(4,2), &
+        !                          rlm_dir(3,3),rlm_dir(4,3)
+        !write(85,'(12(1x,f12.6))')rsup_dir(1,1),rsup_dir(2,1), & 
+        !                          rsup_dir(1,2),rsup_dir(2,2), &  
+        !                          rsup_dir(1,3),rsup_dir(2,3), &  
+        !                          rsup_dir(3,1),rsup_dir(4,1), &  
+        !                          rsup_dir(3,2),rsup_dir(4,2), &  
+        !                          rsup_dir(3,3),rsup_dir(4,3)   
+        !write(86,'(12(1x,f12.6))')albg*rsg(1),albg*rsg(2), & 
+        !           emg*sigma*(tg(1,ng_u)**4.)+(1-emg)*rlg(1), & 
+        !           emg*sigma*(tg(2,ng_u)**4.)+(1-emg)*rlg(2) 
+        !write(87,'(30(1x,f12.6))')tg(1,ng_u),tg(2,ng_u),(tw(1,iz),iz=1,7), &
+        !           (tw(2,iz),iz=1,7),(tw(3,iz),iz=1,7),(tw(4,iz),iz=1,7) 
+
+  
+      return
+
+      end subroutine modif_rad_mr
+
+
+! ===6=8===============================================================72  
+
+! ===6=8===============================================================72   
+
+      subroutine shadow_mas_mr_up(nd,nz_u,zr,deltar,ah,drst,ws,ss,pb,z,rs,    &
+                           rsup_dir,xpos,iurb)
+        
+! ----------------------------------------------------------------------
+!         Modification of short wave radiation to take into account
+!         the shadow produced by the buildings for the computation of the mean radiant temperature
+! ----------------------------------------------------------------------
+
+      implicit none
+     
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      integer nd                ! Number of street direction for the current urban class
+      integer nz_u              ! number of vertical layers defined in the urban grid
+      real ah                   ! Hour angle (it should come from the radiation routine)
+      real deltar               ! Declination of the sun
+      real drst(ndm)            ! street directions for the current urban class
+      real rs                   ! solar radiation
+      real ss(nz_um)          ! probability to have a building with height h
+      real pb(nz_um)          ! Probability that a building has an height greater or equal to h
+      real ws(ndm)              ! Street width of the current urban class
+      real z(nz_um)           ! Height of the urban grid levels
+      real zr                   ! zenith angle
+      real xpos(ndm,npos)
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+      real rsup_dir(2*ndm,npos) 
+
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+      integer id,iz,jz,idr,iurb,ipos
+      real aae,aaw,bbb,phix,rd,rtot,wsd,sh_pos
+   
+      
+! ----------------------------------------------------------------------
+! END VARIABLES DEFINITIONS
+! ----------------------------------------------------------------------
+
+ 
+
+      if(rs.eq.0.or.sin(zr).ge.1)then
+        
+         do id=1,2*ndm
+          do ipos=1,npos
+           rsup_dir(id,ipos)=0.
+          enddo
+         enddo
+      else                          
+         if(abs(sin(zr)).gt.1.e-10)then
+          if(cos(deltar)*sin(ah)/sin(zr).ge.1)then
+           bbb=pi/2.
+          elseif(cos(deltar)*sin(ah)/sin(zr).le.-1)then
+           bbb=-pi/2.
+          else
+           bbb=asin(cos(deltar)*sin(ah)/sin(zr))
+           if((ah-deltar).lt.(-pi/2.))bbb=-pi-bbb
+           if((ah+deltar).gt.(pi/2.))bbb=pi-bbb
+          endif
+         else
+          if(cos(deltar)*sin(ah).ge.0)then
+           bbb=pi/2.
+          elseif(cos(deltar)*sin(ah).lt.0)then
+           bbb=-pi/2.
+          endif
+         endif
+
+         phix=zr
+           
+         do id=1,2*ndm
+          do ipos=1,npos
+           rsup_dir(id,ipos)=0.
+          enddo
+         enddo
+!
+         do id=1,nd          
+           aae=bbb-drst(id)
+           aaw=bbb-drst(id)+pi                    
+           if(sin(aaw).gt.1.e-10)then                 
+             wsd=abs(ws(id)/sin(aaw))              
+             do jz=1,nz_u           
+              rd=max(0.,wsd-(z(jz+1)-zman)*tan(phix))
+              sh_pos=rd/wsd*ws(id)
+              do ipos=1,npos   
+               if(xpos(id,ipos).le.sh_pos)then
+                rsup_dir(2*id,ipos)=rsup_dir(2*id,ipos)+rs*ss(jz+1)
+                rsup_dir(2*id-1,ipos)=rsup_dir(2*id-1,ipos)+rs*ss(jz+1)  
+               endif       
+              enddo
+             enddo
+           endif
+           if(sin(aae).gt.1.e-10)then
+            wsd=abs(ws(id)/sin(aae))              
+            do jz=1,nz_u           
+               rd=max(0.,wsd-(z(jz+1)-zman)*tan(phix))
+               sh_pos=ws(id)-rd/wsd*ws(id)
+              do ipos=1,npos 
+               if(xpos(id,ipos).ge.sh_pos)then
+                rsup_dir(2*id,ipos)=rsup_dir(2*id,ipos)+rs*ss(jz+1)
+                rsup_dir(2*id-1,ipos)=rsup_dir(2*id-1,ipos)+rs*ss(jz+1)  
+               endif       
+              enddo
+            enddo
+           endif
+         enddo
+      endif
+         
+!
+!         stop
+!
+      return
+      end subroutine shadow_mas_mr_up
+         
+! ===6=8===============================================================72  
+
+! ===6=8===============================================================72   
+
+      subroutine shadow_mas_mr_boston(nd,nz_u,zr,deltar,ah,drst,ws,ss,pb,z,rs,    &
+                           rsm_dir,xpos,iurb,xlat)
+        
+! ----------------------------------------------------------------------
+!         Modification of short wave radiation to take into account
+!         the shadow produced by the buildings for the computation of the mean radiant temperature
+! ----------------------------------------------------------------------
+
+      implicit none
+     
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      integer nd                ! Number of street direction for the current urban class
+      integer nz_u              ! number of vertical layers defined in the urban grid
+      real ah                   ! Hour angle (it should come from the radiation routine)
+      real deltar               ! Declination of the sun
+      real xlat,xlat_r ! latitude in degree and radians
+      real drst(ndm)            ! street directions for the current urban class
+      real rs                   ! solar radiation
+      real ss(nz_um)          ! probability to have a building with height h
+      real pb(nz_um)          ! Probability that a building has an height greater or equal to h
+      real ws(ndm)              ! Street width of the current urban class
+      real z(nz_um)           ! Height of the urban grid levels
+      real zr                   ! zenith angle
+      real xpos(ndm,npos)
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+      real rsm_dir(2*ndm,npos) 
+
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+      integer id,iz,jz,idr,iurb,ipos
+      real aae,aaw,bbb,phix,rd,rtot,wsd
+   
+      
+! ----------------------------------------------------------------------
+! END VARIABLES DEFINITIONS
+! ----------------------------------------------------------------------
+
+       xlat_r=xlat*pi/180 
+
+      if(rs.le.0.or.sin(zr).ge.1)then
+         do id=1,2*ndm
+          do ipos=1,npos
+           rsm_dir(id,ipos)=0.
+          enddo
+         enddo
+      else                          
+         if(abs(sin(zr)).gt.1.e-10)then
+          if(cos(deltar)*sin(ah)/sin(zr).ge.1)then
+           bbb=pi/2.
+          elseif(cos(deltar)*sin(ah)/sin(zr).le.-1)then
+           bbb=-pi/2.
+          else
+           !bbb=asin(cos(deltar)*sin(ah)/sin(zr))
+           bbb=asin(cos(deltar)*sin(ah)/sin(zr))                !
+           if((ah-deltar).lt.(-pi/2.))bbb=-pi-bbb
+           if((ah+deltar).gt.(pi/2.))bbb=pi-bbb
+          endif
+         else
+          if(cos(deltar)*sin(ah).ge.0)then
+           bbb=pi/2.
+          elseif(cos(deltar)*sin(ah).lt.0)then
+           bbb=-pi/2.
+          endif
+         endif
+
+
+         phix=zr
+           
+         do id=1,2*ndm
+          do ipos=1,npos
+           rsm_dir(id,ipos)=0.
+          enddo
+         enddo
+!
+           !write(65,*)deltar/pi*180.,ah/pi*180.,zr/pi*180.,bbb/pi*180.,xlat_r/pi*180.
+         do id=1,nd          
+           aae=bbb-drst(id)
+           aaw=bbb-drst(id)+pi                    
+           !write(*,*)'in shadow_mas_mr_boston',sin(aae),sin(aaw)
+           !write(64,*)bbb/pi*180.,aae/pi*180.,aaw/pi*180.
+             do jz=1,nz_u  
+              if(ss(jz+1).gt.0)then                  
+               !if(abs(sin(aae)).gt.1.e-10)then
+               if(sin(aae).gt.1.e-10)then
+                 do ipos=1,npos
+                   call shade_wall(0.,zman,z(jz+1),phix,aae,   &    
+                      xpos(id,ipos),rd)
+                   rsm_dir(2*id-1,ipos)=rsm_dir(2*id-1,ipos)+rs*rd*ss(jz+1)
+                 enddo                                   
+               !if(abs(sin(aaw)).gt.1.e-10)then
+               else 
+                   do ipos=1,npos
+                     call shade_wall(0.,zman,z(jz+1),phix,aaw,   &    
+                      ws(id)-xpos(id,ipos),rd)
+                     rsm_dir(2*id,ipos)=rsm_dir(2*id,ipos)+rs*rd*ss(jz+1)
+                   enddo
+                endif
+               endif 
+              enddo                               
+         enddo
+      endif
+         
+!
+!         stop
+!
+      return
+      end subroutine shadow_mas_mr_boston   
+! ===6=8===============================================================72     
+
+      subroutine long_rad_mr(iurb,nz_u,id,emw,emg,emwin,pwin,twlev,&
+                         mrw_dir,mrg_dir,mrs_dir,      & 
+                         tg,tw,rlg,rlw,rl,pb,rlm_dir)
+
+! ----------------------------------------------------------------------
+! This routine computes the long wave radiation reaching a man in the middle of the street 
+! ----------------------------------------------------------------------
+
+      implicit none
+     
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      real emg                        ! Emissivity of ground for the current urban class
+      real emw                        ! Emissivity of wall for the current urban class
+
+      real mrw_dir(nz_um,2*ndm,npos)       ! View factors from ground to wall
+      real mrg_dir(2*ndm,npos)             ! View factors from sky to ground
+      real mrs_dir(2*ndm,npos)             ! View factors from sky to wall
+
+      
+      integer id                      ! Current street direction
+      integer iurb                    ! Current urban class
+      integer nz_u                    ! Number of layer in the urban grid
+      real pb(nz_um)                  ! Probability to have a building with an height equal
+      real rl                         ! Downward flux of the longwave radiation
+      real tg(ndm,ng_u)               ! Temperature in each layer of the ground [K]
+      real tw(2*ndm,nz_um)            ! Temperature in each layer of the wall [K]
+      real rlg(ndm)                   ! Long wave radiation at the ground
+      real rlw(2*ndm,nz_um)           ! Long wave radiation at the walls
+!
+!New Variables for BEM
+!
+      real twlev(2*ndm,nz_um)         ! Window temperature in BEM [K]
+      real emwin                      ! Emissivity of windows
+      real pwin                       ! Coverage area fraction of windows in the walls of the buildings (BEM)
+      
+
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+      
+     real rlm_dir(2*ndm,npos)           ! Long wave radiation at the man
+
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+      integer i,ipos
+      real wall
+     
+
+! ----------------------------------------------------------------------
+! END VARIABLES DEFINITIONS
+! ----------------------------------------------------------------------
+     
+    
+     do ipos=1,npos
+      rlm_dir(2*id-1,ipos)=0.
+     enddo
+
+     do i=1,nz_u
+      wall=(1.-emw*(1.-pwin)-emwin*pwin)*rlw(2*id,i)+                                         &
+              sigma*(emw*(1.-pwin)*tw(2*id,i)**4+emwin*pwin*twlev(2*id,i)**4)
+ 
+       do ipos=1,npos
+        rlm_dir(2*id-1,ipos)=rlm_dir(2*id-1,ipos)+mrw_dir(i,2*id-1,ipos)*(wall*pb(i+1)+rl*(1.-pb(i+1)))
+       enddo
+
+     enddo
+      
+     do ipos=1,npos
+      rlm_dir(2*id-1,ipos)=rlm_dir(2*id-1,ipos)+mrg_dir(2*id-1,ipos)*((1.-emg)*rlg(id)+emg*sigma*tg(id,ng_u)**4)+mrs_dir(2*id-1,ipos)*rl
+     enddo
+             
+ 
+     do ipos=1,npos
+      rlm_dir(2*id,ipos)=0.
+     enddo
+     do i=1,nz_u
+      wall=(1.-emw*(1.-pwin)-emwin*pwin)*rlw(2*id-1,i)+                          &
+                  sigma*(emw*(1.-pwin)*tw(2*id-1,i)**4+emwin*pwin*twlev(2*id-1,i)**4)
+      do ipos=1,npos
+        rlm_dir(2*id,ipos)=rlm_dir(2*id,ipos)+mrw_dir(i,2*id,ipos)*(wall*pb(i+1)+rl*(1.-pb(i+1)))
+       enddo
+     enddo
+      
+     do ipos=1,npos
+      rlm_dir(2*id,ipos)=rlm_dir(2*id,ipos)+mrg_dir(2*id,ipos)*((1.-emg)*rlg(id)+emg*sigma*tg(id,ng_u)**4)+mrs_dir(2*id,ipos)*rl
+     enddo
+
+       return
+       end subroutine long_rad_mr
+             
+! ===6=8===============================================================72
+
+! ===6=8===============================================================72
+
+       subroutine short_rad_mr(iurb,nz_u,id,albw,                        & 
+                               albg,mrw_dir,mrg_dir,mrs_dir, & 
+                               rsg,rsw,pb,rrm_dir)
+
+! ----------------------------------------------------------------------
+! This routine computes the amount of reflected solar radiation reaching 
+! the man in the middle of the street
+! ----------------------------------------------------------------------
+
+      implicit none
+
+  
+      
+! ----------------------------------------------------------------------
+! INPUT:
+! ----------------------------------------------------------------------
+      real albg                 ! Albedo of the ground for the current urban class
+      real albw                 ! Albedo of the wall for the current urban class
+      real mrw_dir(nz_um,2*ndm,npos)       ! View factors from wall
+      real mrg_dir(2*ndm,npos)       ! View factors from ground
+      real mrs_dir(2*ndm,npos) ! View factors from sky
+      integer id                ! current street direction 
+      integer iurb              ! current urban class
+      integer nz_u              ! Number of layer in the urban grid
+      real pb(nz_um)          ! probability to have a building with an height equal
+      real rsg(ndm)             ! Short wave radiation at the ground
+      real rsw(2*ndm,nz_um)     ! Short wave radiation at the walls
+
+! ----------------------------------------------------------------------
+! OUTPUT:
+! ----------------------------------------------------------------------
+     real rrm_dir(2*ndm,npos)     ! Short wave radiation at the man
+! ----------------------------------------------------------------------
+! LOCAL:
+! ----------------------------------------------------------------------
+      integer i,j,ipos
+      
+! ----------------------------------------------------------------------
+! END VARIABLES DEFINITIONS
+! ----------------------------------------------------------------------
+  
+      do i=1,nz_u
+       do ipos=1,npos
+        rrm_dir(2*id-1,ipos)=rrm_dir(2*id-1,ipos)+mrw_dir(i,2*id-1,ipos)*(pb(i+1)*albw*rsw(2*id,i))
+       enddo
+      enddo
+      do ipos=1,npos
+       rrm_dir(2*id-1,ipos)=rrm_dir(2*id-1,ipos)+mrg_dir(2*id-1,ipos)*albg*rsg(id)
+      enddo
+
+      do i=1,nz_u
+      do ipos=1,npos
+        rrm_dir(2*id,ipos)=rrm_dir(2*id,ipos)+mrw_dir(i,2*id,ipos)*(pb(i+1)*albw*rsw(2*id-1,i))
+       enddo
+      enddo
+      do ipos=1,npos
+       rrm_dir(2*id,ipos)=rrm_dir(2*id,ipos)+mrg_dir(2*id,ipos)*albg*rsg(id)
+      enddo
+
+      return
+      end subroutine short_rad_mr
+             
+
+! ===6=8===============================================================72     
+
+      subroutine view_factors_mr_dir(id,iurb,nz_u,dxy,z,xpos,ws, &
+                                    mrw_dir,mrg_dir,mrs_dir) 
+     
+      implicit none
+
+ 
+
+! -----------------------------------------------------------------------
+!     Input
+!------------------------------------------------------------------------
+
+      integer iurb            ! Number of the urban class
+      integer nz_u            ! Number of levels in the urban grid
+      integer id              ! Street direction number
+      real ws      ! Street width
+      real z(nz_um)         ! Height of the urban grid levels
+      real dxy                ! Street lenght
+
+
+! -----------------------------------------------------------------------
+!     Output
+!------------------------------------------------------------------------
+
+!   mrw,mrg,mrs are the view factors used to compute the long wave
+!   and the short wave contributions for the mean radiant temperature 
+      real mrw_dir(nz_um,2*ndm,npos)         !  from wall 
+      real mrg_dir(2*ndm,npos)               !  from ground
+      real mrs_dir(2*ndm,npos)               !  from sky
+      real xpos(ndm,npos)
+
+
+! -----------------------------------------------------------------------
+!     Local
+!------------------------------------------------------------------------
+
+      integer jz,iz,ipos
+
+      real hut
+      real f1,f2,f12,f23,f123,ftot
+      real fprl,fnrm
+      real a1,a2,a3,a4,a12,a23,a123
+      real wsh
+
+! -----------------------------------------------------------------------
+!     This routine calculates the view factors for the mean radiant temperature calculation
+! for a man of 2.m, in the middle of the street.
+!------------------------------------------------------------------------
+        
+      hut=z(nz_u+1)
+      
+          
+
+! radiation from wall 
+!       do id=1,ndm
+        do ipos=1,npos
+
+! first do it from one side
+
+         wsh=xpos(id,ipos)
+         do jz=1,nz_u     
+            call fprls (fprl,dxy,abs(z(jz+1)-0.),wsh)
+            f123=fprl
+            call fprls (fprl,dxy,abs(z(jz+1)-zman),wsh)
+            f23=fprl
+            call fprls (fprl,dxy,abs(z(jz  )-0.),wsh)
+            f12=fprl
+            call fprls (fprl,dxy,abs(z(jz  )-zman),wsh)
+            f2 = fprl       
+            a123=dxy*(abs(z(jz+1)-0.))
+            a12 =dxy*(abs(z(jz  )-0.))
+            a23 =dxy*(abs(z(jz+1)-zman))
+            a1  =dxy*(abs(zman-0.))
+            a2  =dxy*(abs(z(jz  )-zman))
+            a3  =dxy*(abs(zman))
+            ftot=0.5*(a123*f123-a23*f23-a12*f12+a2*f2)/a1       
+            mrw_dir(jz,2*id-1,ipos)=ftot*a1/a3
+         enddo 
+
+! radiation from ground     
+         call fnrms (fnrm,zman,dxy,wsh)
+         f12=fnrm
+         call fnrms (fnrm,0.  ,dxy,wsh)
+         f1=fnrm       
+         a1 = wsh*dxy         
+         a12= wsh*dxy       
+         a4=(zman-0.)*dxy       
+         ftot=(a12*f12-a12*f1)/a1                    
+         mrg_dir(2*id-1,ipos)=ftot*a1/a4
+     
+!  radiation from sky    
+         call fnrms(fnrm,hut-0.  ,dxy,wsh)
+         f12 = fnrm
+         call fnrms (fnrm,hut-zman,dxy,wsh)
+         f1 =fnrm       
+         a1 = wsh*dxy       
+         a12= wsh*dxy              
+         a4 = (zman-0.)*dxy       
+         ftot=(a12*f12-a12*f1)/a1        
+         mrs_dir(2*id-1,ipos)=ftot*a1/a4  
+
+!now do it from the other side
+         wsh=ws-xpos(id,ipos)
+         do jz=1,nz_u     
+            call fprls (fprl,dxy,abs(z(jz+1)-0.),wsh)
+            f123=fprl
+            call fprls (fprl,dxy,abs(z(jz+1)-zman),wsh)
+            f23=fprl
+            call fprls (fprl,dxy,abs(z(jz  )-0.),wsh)
+            f12=fprl
+            call fprls (fprl,dxy,abs(z(jz  )-zman),wsh)
+            f2 = fprl       
+            a123=dxy*(abs(z(jz+1)-0.))
+            a12 =dxy*(abs(z(jz  )-0.))
+            a23 =dxy*(abs(z(jz+1)-zman))
+            a1  =dxy*(abs(zman-0.))
+            a2  =dxy*(abs(z(jz  )-zman))
+            a3  =dxy*(abs(zman))
+            ftot=0.5*(a123*f123-a23*f23-a12*f12+a2*f2)/a1       
+            mrw_dir(jz,2*id,ipos)=ftot*a1/a3
+         enddo 
+
+! radiation from ground     
+         call fnrms (fnrm,zman,dxy,wsh)
+         f12=fnrm
+         call fnrms (fnrm,0.  ,dxy,wsh)
+         f1=fnrm       
+         a1 = wsh*dxy         
+         a12= wsh*dxy       
+         a4=(zman-0.)*dxy       
+         ftot=(a12*f12-a12*f1)/a1                    
+         mrg_dir(2*id,ipos)=ftot*a1/a4 
+     
+!  radiation from sky    
+         call fnrms(fnrm,hut-0.  ,dxy,wsh)
+         f12 = fnrm
+         call fnrms (fnrm,hut-zman,dxy,wsh)
+         f1 =fnrm       
+         a1 = wsh*dxy       
+         a12= wsh*dxy              
+         a4 = (zman-0.)*dxy       
+         ftot=(a12*f12-a12*f1)/a1        
+         mrs_dir(2*id,ipos)=ftot*a1/a4       
+       enddo
+!      enddo
+
+      return
+      end subroutine view_factors_mr_dir
+
+! ===6=8===============================================================72
+!====================================================================72
+        subroutine comf_calc_lw(therm_comf,met_comf, &
+                       clo_comf,wme_comf,height_comf,weight_comf, & 
+                       ndm,npos,tmr_dir,ua_u,va_u, &
+                       pt_u,pr_u,da_u,qv_u, &
+                       ws,bs,pb, &
+                       comf_10,comf_50,comf_90,hist_comf, & 
+                       lp_set,ix,iy)
+        implicit none
+        integer ndm,npos,ix,iy 
+        real tmr_dir(ndm,npos),ws(ndm),bs(ndm)
+        real pb(nz_um)
+        real ua_u,va_u,pt_u,pr_u,da_u,qv_u
+        real comf_10,comf_50,comf_90
+        real hist_comf(ncomf)
+        real lp_set
+! thermal comfort
+        integer therm_comf
+        real met_comf, &
+            clo_comf,wme_comf,height_comf,weight_comf
+! Local
+        real   met,clo, wme, patm,body_weight, body_height
+        real lambda_w,speed(3),temp(3),rh,vel
+        real a,b,tr
+        real*8 tr8,temp8,speed8,rh8,utci8,ehpa8
+        double precision ET,UTCI_approx
+        real es
+        real comf_full(ndm*npos*3*3)
+        integer icount,id,ip,it,iv,np,iz
+        
+! fix some parameters
+        met = met_comf    !metabolic rate (unit??)
+        clo = clo_comf    !clothing insulation (unit??)
+        wme=wme_comf ! external work|
+        body_weight=weight_comf ! body weight
+        body_height=height_comf !body height
+!        write(*,*)'therm_comf',therm_comf,met,clo,wme,body_weight,body_height
+
+        np=ndm*npos*3*3
+! first compute the speed from the velocity
+! a and b coefficients for the linear relation between speed and velocity
+! as speed=vel/(a-b*lambda_p)
+        a=1.
+        b=0.48
+        lambda_w=0.
+        do id=1,ndm
+         do iz=1,nz_um
+         lambda_w=lambda_w+2.*pb(iz)*dz_u/(ws(1)+bs(1))
+         enddo
+        enddo
+        lambda_w=lambda_w/ndm
+        lp_set=lambda_w
+        vel=(ua_u**2.+va_u**2.)**.5
+        speed(2)=vel/max((a-b*lambda_w**0.4),0.01)
+        speed(3)=speed(2)+speed(2)*(0.25*lambda_w**0.55)
+        speed(1)=speed(2)-speed(2)*(0.25*lambda_w**0.55)
+        if(speed(1).lt.0.01)speed(1)=0.01
+!now compute the air temperature.Let assume a variability of +/- 1 K
+        temp(2)=pt_u*(pr_u/1.e+5)**(rcp_u)-273.15 
+        temp(1)=temp(2)-1.
+        temp(3)=temp(2)+1.
+       if(therm_comf.eq.1)then
+       ! do iv=1,3
+       !  if(speed(iv).ge.2)speed(iv)=1.9999
+       !  if(speed(iv).le.0)speed(iv)=0.0001
+       ! enddo
+       ! do it=1,3
+       !  if(temp(it).ge.50.)then
+       !    write(*,*)'temp greater than 50, force to 50C'
+       !    temp(it)=50.
+       !  endif
+       !  if(temp(it).le.10.)then
+       !    write(*,*)'temp lower than 10, force to 10C'
+       !    temp(it)=10.
+       !  endif
+       ! enddo
+            
+! now compute all the values for set
+        icount=0
+        do ip=1,npos
+        do id=1,ndm
+        do iv=1,3
+        do it=1,3
+         icount=icount+1
+         call calc_relhum(pr_u,temp(it)+273.15,qv_u,rh)
+         tr=tmr_dir(id,ip)-273.15
+       !  write(*,*)'before call to set',temp(it),tr,speed(iv),rh, &
+       !             met,clo,wme,pr_u,body_weight,body_height
+         call set_calc_loc(temp(it),tr,speed(iv),rh, &
+                    met,clo,wme,pr_u,body_weight,body_height, &
+                     comf_full(icount))
+       !  write(*,*)'after call to set=',comf_full(icount)
+        enddo
+        enddo
+        enddo
+        enddo
+        call perc(np,comf_full,comf_10,comf_50,comf_90)
+        !write(*,*)'call to hist_cal'
+        call hist_calc(np,therm_comf,comf_full,hist_comf)
+       elseif(therm_comf.eq.2)then
+        icount=0
+        do ip=1,npos
+        do id=1,ndm
+        do iv=1,3
+        do it=1,3
+         icount=icount+1
+         call calc_relhum(pr_u,temp(it)+273.15,qv_u,rh)
+         tr=tmr_dir(id,ip)-273.15
+         tr8=tr
+         temp8=temp(it)
+         speed8=speed(iv)
+         rh8=rh
+         call es_calc(temp(it),es)
+         ehpa8=es*rh8/100.0
+         call utci_approx_calc(temp8,ehPa8,tr8,speed8,utci_approx)
+         utci8 = UTCI_approx
+         comf_full(icount)=utci8
+        enddo
+        enddo
+        enddo
+        enddo
+
+
+        call perc(np,comf_full,comf_10,comf_50,comf_90)
+        call hist_calc(np,therm_comf,comf_full,hist_comf)
+       endif
+
+        return
+      end subroutine comf_calc_lw
+!========================================
+        subroutine comf_calc_lp(therm_comf,met_comf, &
+                       clo_comf,wme_comf,height_comf,weight_comf, & 
+                       ndm,npos,tmr_dir,ua_u,va_u, &
+                       pt_u,pr_u,da_u,qv_u, &
+                      ws,bs, &
+                       comf_10,comf_50,comf_90, & 
+                       lp_set,ix,iy)
+        implicit none
+        integer ndm,npos,ix,iy 
+        real tmr_dir(ndm,npos),ws(ndm),bs(ndm)
+        real ua_u,va_u,pt_u,pr_u,da_u,qv_u
+        real comf_10,comf_50,comf_90
+        real lp_set
+! thermal comfort
+        integer therm_comf
+        real met_comf, &
+            clo_comf,wme_comf,height_comf,weight_comf
+! Local
+        real   met,clo, wme, patm,body_weight, body_height
+        real lambda_p,speed(3),temp(3),rh,vel
+        real a,b,tr
+        real*8 tr8,temp8,speed8,rh8,utci8,ehpa8
+        double precision ET,UTCI_approx
+        real es
+        real comf_full(ndm*npos*3*3)
+        integer icount,id,ip,it,iv,np
+         
+! fix some parameters
+        met = met_comf    !metabolic rate (unit??)
+        clo = clo_comf    !clothing insulation (unit??)
+        wme=wme_comf ! external work|
+        body_weight=weight_comf ! body weight
+        body_height=height_comf !body height
+!        write(*,*)'therm_comf',therm_comf,met,clo,wme,body_weight,body_height
+
+        np=ndm*npos*3*3
+! first compute the speed from the velocity
+! a and b coefficients for the linear relation between speed and velocity
+! as speed=vel/(a-b*lambda_p)
+        a=1.
+        b=1.
+        lambda_p=0.
+        do id=1,ndm
+         lambda_p=lambda_p+bs(1)/(ws(1)+bs(1))
+        enddo
+        lambda_p=lambda_p/ndm
+        lp_set=lambda_p
+        vel=(ua_u**2.+va_u**2.)**.5
+        speed(2)=vel/max((a-b*lambda_p),0.01)
+        speed(3)=speed(2)+speed(2)*(0.6+0.2*lambda_p)
+        speed(1)=speed(2)-speed(2)*(0.6+0.2*lambda_p)
+!now compute the air temperature.Let assume a variability of +/- 0.5 K
+        temp(2)=pt_u*(pr_u/1.e+5)**(rcp_u)-273.15 
+        temp(1)=temp(2)-1.
+        temp(3)=temp(2)+1.
+       if(therm_comf.eq.1)then
+        !do iv=1,3
+        ! if(speed(iv).ge.2)speed(iv)=1.9999
+        ! if(speed(iv).le.0)speed(iv)=0.0001
+        !enddo
+        !do it=1,3
+        ! if(temp(it).ge.50.)then
+        !   write(*,*)'temp greater than 50, force to 50C'
+        !   temp(it)=50.
+        ! endif
+        ! if(temp(it).le.10.)then
+        !   write(*,*)'temp lower than 10, force to 10C'
+        !   temp(it)=10.
+        ! endif
+        !enddo
+            
+! now compute all the values for set
+        icount=0
+        do ip=1,npos
+        do id=1,ndm
+        do iv=1,3
+        do it=1,3
+         icount=icount+1
+         call calc_relhum(pr_u,temp(it)+273.15,qv_u,rh)
+         tr=tmr_dir(id,ip)-273.15
+         !write(*,*)'before call to set',temp(it),tr,speed(iv),rh, &
+         !           met,clo,wme,pr_u,body_weight,body_height
+         call set_calc_loc(temp(it),tr,speed(iv),rh, &
+                    met,clo,wme,pr_u,body_weight,body_height, &
+                     comf_full(icount))
+         !write(*,*)'after call to set=',comf_full(icount)
+        enddo
+        enddo
+        enddo
+        enddo
+        call perc(np,comf_full,comf_10,comf_50,comf_90)
+       elseif(therm_comf.eq.2)then
+        icount=0
+        do ip=1,npos
+        do id=1,ndm
+        do iv=1,3
+        do it=1,3
+         icount=icount+1
+         tr8=tr
+         temp8=temp(it)
+         speed8=speed(iv)
+         rh8=rh
+         call es_calc(temp(it),es)
+         ehpa8=es*rh8/100.0
+         call utci_approx_calc(temp8,ehPa8,tr8,speed8,utci_approx)
+         utci8 = UTCI_approx
+         comf_full(icount)=utci8
+        enddo
+        enddo
+        enddo
+        enddo
+
+        call perc(np,comf_full,comf_10,comf_50,comf_90)
+       endif
+
+        return
+      end subroutine comf_calc_lp
+!----------------------------------------------
+     subroutine perc(np,wrk,p10,p50,p90)
+     real wrk(np)
+     real p10,p50,p90,inf,sup
+     integer ip,jp,i,ip10,ip50,ip90
+
+      do ip=1,np
+      do jp=ip,np
+       if(wrk(jp).lt.wrk(ip))then
+        inf=wrk(jp)
+        sup=wrk(ip)
+        wrk(ip)=inf
+        wrk(jp)=sup
+       endif
+      enddo
+      enddo
+  
+      ip10=np*0.1
+      ip50=np*0.5
+      ip90=np*0.90
+
+      p10=wrk(ip10)
+      p50=wrk(ip50)
+      p90=wrk(ip90)
+      return
+      end subroutine perc
+!----------------------------------------
+      subroutine hist_calc(np,therm_comf,comf_full,hist_comf)
+      implicit none
+      integer np,it,ip
+      real hist_comf(ncomf),comf_full(np)
+      integer therm_comf
+      !write(*,*)'in hist_calc',np,ncomf,therm_comf,comf_full 
+      if(therm_comf.eq.1)then
+       do it=1,ncomf
+       do ip=1,np
+        if(comf_full(ip).ge.ranges_set(it).and.comf_full(ip).lt.ranges_set(it+1))hist_comf(it)=hist_comf(it)+1
+       enddo
+       !write(*,*)'comf range',it,hist_comf(it),ranges_set(it)
+       enddo
+       do it=1,ncomf
+        hist_comf(it)=hist_comf(it)/np*100.
+       enddo
+      elseif(therm_comf.eq.2)then
+       do ip=1,np
+       do it=1,ncomf
+        if(comf_full(ip).ge.ranges_utci(it).and.comf_full(ip).lt.ranges_utci(it+1))hist_comf(it)=hist_comf(it)+1
+       enddo
+       enddo
+       do it=1,ncomf
+        hist_comf(it)=hist_comf(it)/np*100.
+       enddo
+      endif
+      return
+      end subroutine hist_calc
+
+!--------------------------------------------------------------------
+      subroutine set_calc_loc(tdb,tr,v,rh,met,clo,wme,patm,body_weight,body_height,set)
+
+! subroutine provided by Negin Nazarian (University of New South Wales, n.nazarian@unsw.edu.au )
+!    Calculates the Standard Effective Temperature (SET). The SET is the
+!    temperature of an imaginary environment at 50% (rh), <0.1 m/s (20 fpm)
+!    average air speed (v), and tr = tdb ,
+!    in which the total heat loss from the skin of an imaginary occupant with an
+!    activity level of 1.0 met and a clothing level of 0.6 clo is the same as
+!    that
+!    from a person in the actual environment with actual clothing and activity
+!    level.
+!
+!.......................  
+      implicit none
+      real   tdb, tr,v,rh
+      real   met,clo, wme, patm,body_weight, body_height
+      real   vapor_pressure,air_velocity, pressure_in_atmospheres
+      real   PSSK, skin_blood_flow_neutral, p_sattorr
+      real   k_clo,  met_factor, body_surface_area
+      real   SBC, CSW, CDIL, CSTR
+      real   temp_skin_neutral, temp_core_neutral, temp_body_neutral
+      real   temp_skin, temp_core, skin_blood_flow, TB, SKSIG
+      real   RCL, FACL, LR, ALFA, ESK
+      integer LTIME
+      real   RM, M, WCRIT, ICL, W, CHRS
+      real   CHC, CHCV, CHR, CTC, RA, TOP, TCL, TCL_OLD, DRY      
+      real   HFCS, ERES, CRES, SCR, SSK, TCSK, TCCR, DTSK, DTCR
+      real   WARMS, COLDS, CRSIG, WARMC, COLDC, BDSIG, WARMB
+      real   REGSW,ERSW,REA, RECLa, EMAX, PRSW, PWET, EDIF, MSHIV 
+      real   CTCS, RCLOS, RCLS, FACLS, FCLS, IMS, ICLS, RAS, REAS, RECLS
+      real   HD_S, HE_S, HSK, CHCS
+      real   DELTA, dx, ERR1, ERR2
+      real   psk_new, psk_old
+      real   set_old,set ! outputs
+  
+      integer i, TIM,iter
+
+      LOGICAL  flag
+ 
+!      call StandardCompliance(tdb, tr, v, rh, met, clo)
+!    Initial variables as defined in the ASHRAE 55-2017
+      call p_sat_torr(tdb,p_sattorr)
+      vapor_pressure = rh * p_sattorr / 100
+      air_velocity = max(v, 0.1)
+      k_clo = 0.25
+!    constants
+      SBC = 0.000000056697  ! Stefan-Boltzmann constant (W/m2K4)
+      CSW = 170.0
+      CDIL = 120.0
+      CSTR = 0.5
+      met_factor = 58.2
+!    considering 0 work           
+      wme=0
+!  Calculating body surface area
+      body_surface_area = 0.202*body_weight**0.425*body_height**0.725 ! DuBois & DuBois Surface Area 
+! initialization 
+      temp_skin_neutral = 33.7
+      temp_core_neutral = 36.8
+      temp_body_neutral = 36.49
+      skin_blood_flow_neutral = 6.3
+
+      temp_skin = temp_skin_neutral
+      temp_core = temp_core_neutral
+      skin_blood_flow = skin_blood_flow_neutral
+      ALFA = 0.1
+      ESK = 0.1 * met
+    
+      pressure_in_atmospheres = patm / 101325
+      LTIME = 60
+      RCL = 0.155 * clo
+
+      FACL = 1.0 + 0.15 * clo  ! INCREASE IN BODY SURFACE AREA DUE TO CLOTHING
+      LR = 2.2 / pressure_in_atmospheres
+      RM = met * met_factor
+      M = met * met_factor
+      if(clo.le.0.)then
+        WCRIT = 0.38 * (air_velocity**(-0.29))
+        ICL = 1.0
+      else
+        WCRIT = 0.59 * (air_velocity**(-0.08))
+        ICL = 0.45
+      endif
+
+      CHC = 3.0 *(pressure_in_atmospheres**0.53)
+      CHCV = 8.600001 * ((air_velocity * pressure_in_atmospheres)**0.53)
+      CHC = max(CHC, CHCV)
+
+      CHR = 4.7
+      CTC = CHR + CHC
+      RA = 1.0 / (FACL * CTC)
+      TOP = (CHR * tr + CHC * tdb) / CTC
+      TCL = TOP + (temp_skin - TOP) / (CTC * (RA + RCL))
+
+! For loop for solving for SET - 
+      TCL_OLD = 0.0
+      flag = .True.
+      i = 0
+       do TIM = 0, LTIME - 1
+        do while (ABS(TCL - TCL_OLD).gt.0.0001)  
+            if (flag) then
+                i = i + 1
+                TCL_OLD = TCL
+                CHR = 4.0 * SBC * (((TCL + tr) / 2.0 + 273.15)**3.0) * 0.72
+                CTC = CHR + CHC
+                RA = 1.0 / (FACL * CTC)
+                TOP = (CHR * tr + CHC * tdb) / CTC
+            endif
+            TCL = (RA * temp_skin + RCL * TOP) / (RA + RCL)
+            flag = .True.
+        enddo
+        flag = .False.
+        DRY = (temp_skin - TOP) / (RA + RCL)
+!         write(*,*)'dry',dry,top,ra,rcl
+        HFCS = (temp_core - temp_skin) * (5.28 + 1.163 * skin_blood_flow)
+        ERES = 0.0023 * M * (44.0 - vapor_pressure)
+        CRES = 0.0014 * M * (34.0 - tdb)
+        SCR = M - HFCS - ERES - CRES - wme
+        SSK = HFCS - DRY - ESK
+!         write(*,*)'ssk',hfcs,dry,esk
+        TCSK = 0.97 * ALFA * body_weight
+        TCCR = 0.97 * (1 - ALFA) * body_weight
+        DTSK = (SSK * body_surface_area) / (TCSK * 60.0)
+        DTCR = SCR * body_surface_area / (TCCR * 60.0)
+        temp_skin = temp_skin + DTSK
+        temp_core = temp_core + DTCR
+        TB = ALFA * temp_skin + (1 - ALFA) * temp_core
+        SKSIG = temp_skin - temp_skin_neutral
+!         write(*,*)'temp_skin',temp_skin,dtsk,ssk,tcsk
+        if (SKSIG > 0) then
+        WARMS = 1.0 * SKSIG
+        else
+        WARMS=0.0 
+        endif 
+
+        if ((-1.0 * SKSIG) > 0) then 
+        COLDS = (1.0 * (-1.0 * SKSIG))
+        else 
+        COLDS =0.0
+        endif
+        
+        CRSIG = (temp_core - temp_core_neutral)
+        if (CRSIG > 0) then
+        WARMC = 1.0 * CRSIG
+        else
+        WARMC = 0.0 
+        endif
+
+        if ((-1.0 * CRSIG) > 0) then
+        COLDC = (1.0* (-1.0 * CRSIG))
+        else
+        COLDC = 0.0 
+        endif
+        BDSIG = TB - temp_body_neutral
+
+        if (BDSIG > 0)  then
+        WARMB = 1.0* BDSIG
+        else
+        WARMB = 0.0 
+        endif 
+        skin_blood_flow = (skin_blood_flow_neutral + CDIL * WARMC) / (1 + CSTR *COLDS)
+        
+        if(skin_blood_flow.gt.90.0) then
+            skin_blood_flow = 90.0
+        elseif(skin_blood_flow.lt.0.5) then
+            skin_blood_flow = 0.5
+        endif
+!        write(*,*)'before regsw',csw,warmb,warms
+        REGSW = CSW * WARMB * EXP(WARMS / 10.7)
+        if(REGSW.gt.500.0) then
+            REGSW = 500.0
+        endif
+
+        ERSW = 0.68 * REGSW
+        REA = 1.0 / (LR * FACL * CHC)
+        RECLa = RCL / (LR * ICL)
+        call p_sat_torr(temp_skin,PSSK)
+        EMAX = (PSSK - vapor_pressure) / (REA + RECLa)
+ 
+        PRSW = ERSW / EMAX
+        PWET = 0.06 + 0.94 * PRSW
+        EDIF = PWET * EMAX - ERSW
+        ESK = ERSW + EDIF
+
+        if(PWET.gt.WCRIT) then
+            PWET = WCRIT
+            PRSW = WCRIT / 0.94
+            ERSW = PRSW * EMAX
+            EDIF = 0.06 * (1.0 - PRSW) * EMAX
+        elseif(EMAX.lt.0.) then 
+            EDIF = 0
+            ERSW = 0
+            PWET = WCRIT
+        endif
+
+        ESK = ERSW + EDIF
+        MSHIV = 19.4 * COLDS * COLDC
+        M = RM + MSHIV
+        ALFA = 0.0417737 + 0.7451833 / (skin_blood_flow + .585417)
+      enddo
+  
+      HSK = DRY + ESK
+      W = PWET
+      call p_sat_torr(temp_skin,PSSK)
+      CHRS = CHR
+     
+      if (met.lt.0.85) then
+        CHCS = 3.0
+      else
+        CHCS = 5.66 *((met - 0.85)**0.39)
+      endif
+      
+      if(CHCS.lt.3.0) then 
+        CHCS = 3.0
+      endif
+      
+      CTCS = CHCS + CHRS
+      RCLOS = 1.52 / ((met - wme / met_factor) + 0.6944) - 0.1835
+      RCLS = 0.155 * RCLOS
+      FACLS = 1.0 + k_clo * RCLOS
+      FCLS = 1.0 / (1.0 + 0.155 * FACLS * CTCS * RCLOS)
+      IMS = 0.45
+      ICLS = IMS * CHCS / CTCS * (1 - FCLS) / (CHCS / CTCS - FCLS * IMS)
+      RAS = 1.0 / (FACLS * CTCS)
+      REAS = 1.0 / (LR * FACLS * CHCS)
+      RECLS = RCLS / (LR * ICLS)
+      HD_S = 1.0 / (RAS + RCLS)
+      HE_S = 1.0 / (REAS + RECLS)
+
+      DELTA = .0001
+      dx = 100.0
+      set_old = NINT((temp_skin - HSK / HD_S)*100)/100
+!      write(*,*)temp_skin,HSK,HD_S
+      iter=0
+ 
+      do while (ABS(dx).gt.0.0001) 
+              call  p_sat_torr(set_old,psk_old)   
+        ERR1 = (HSK - HD_S * (temp_skin - set_old) - W * HE_S * (PSSK - 0.5 *psk_old))
+        call  p_sat_torr((set_old + DELTA),psk_new)       
+        ERR2 = (HSK - HD_S * (temp_skin - (set_old + DELTA)) - W * HE_S * (PSSK- 0.5 *psk_new))
+        set = set_old - DELTA * ERR1 / (ERR2 - ERR1)
+        dx = set - set_old
+        set_old = set
+        iter=iter+1
+!        write(*,*)'iter',iter,dx,abs(dx)
+      enddo 
+!      write(*,*)'set=',set
+
+
+      return
+      end subroutine set_calc_loc
+
+
+
+!-------------------------------------------
+  subroutine calc_relhum ( p, t, qv , rh )
+
+    IMPLICIT NONE
+
+    REAL, INTENT(IN) :: p, t, qv
+    REAL :: rh
+
+    ! Local
+    ! -----
+    REAL, PARAMETER :: pq0=379.90516
+    REAL, PARAMETER :: a2=17.2693882
+    REAL, PARAMETER :: a3=273.16
+    REAL, PARAMETER :: a4=35.86
+    REAL, PARAMETER :: rhmin=1.
+    REAL :: q, qs
+    INTEGER :: i,j,k
+
+    ! Following algorithms adapted from WRFPOST
+    ! May want to substitute with another later
+    ! -----------------------------------------
+      q=qv/(1.0+qv)
+      qs=pq0/p*exp(a2*(t-a3)/(t-a4))
+      rh=100.*q/qs
+      IF (rh .gt. 100.) THEN
+        rh=100.
+      ELSE IF (rh .lt. rhmin) THEN
+        rh=rhmin
+      ENDIF
+
+      return
+      end subroutine calc_relhum
+! 
+     subroutine StandardCompliance(tdb, tr, v, rh, met, clo)
+     !
+      real   tdb, tr,v,rh,met,clo
+
+      if((tdb.ge.50).OR. (tdb.le.10)) then
+          write(6,*)'ASHRAE air temperature applicability limits between 10 and 50 °C',tdb
+          stop
+      endif
+      if((v.ge.2).OR. (v.le.0))then
+          write(6,*)'ASHRAE air velocity applicability limits between 0 and 2 m/s',v
+          stop
+      endif
+      if((met.ge.2).OR. (met.le.1))then
+           write(6,*)'ASHRAE met applicability limits between 1.0 and 2.0 met'
+           stop
+      endif
+      if((clo.ge.1.5).OR. (met.le.0)) then
+           write(6,*)'ASHRAE clo applicability limits between 0.0 and 1.5 clo'
+           stop
+      endif
+
+      return
+      end subroutine StandardCompliance
+
+     subroutine p_sat_torr(tdb,p_sattorr)
+!    Estimates the saturation vapor pressure in [torr]
+!    Parameters
+!    ----------
+!    tdb : float
+!        dry bulb air temperature, [C]
+
+!    Returns
+!    -------
+!    p_sat  : float
+!        saturation vapor pressure [torr]
+!
+      real   tdb, p_sattorr
+      p_sattorr=EXP(18.6686 - 4030.183 / (tdb + 235.0))
+      return
+      end subroutine p_sat_torr
+!--------------------------------------------------------------------
+!             
+!~ **********************************************
+     subroutine UTCI_approx_calc(Ta,ehPa,Tmrt,va,utci_approx)
+!~ **********************************************
+ !~ DOUBLE PRECISION Function value is the UTCI in degree Celsius
+ !~ computed by a 6th order approximating polynomial from the 4 Input paramters 
+ !~ 
+ !~ Input parameters (all of type DOUBLE PRECISION)
+ !~ - Ta       : air temperature, degree Celsius
+ !~ - ehPa    : water vapour presure, hPa=hecto Pascal
+ !~ - Tmrt   : mean radiant temperature, degree Celsius
+ !~ - va10m  : wind speed 10 m above ground level in m/s
+ !~ 
+ !~  UTCI_approx, Version a 0.002, October 2009
+ !~  Copyright (C) 2009  Peter Broede
+
+      implicit none
+        !~ type of input of the argument list
+       double precision utci_approx
+       DOUBLE PRECISION Ta,va,Tmrt,ehPa,Pa,D_Tmrt;
+          D_TMRT=Tmrt-Ta
+          PA = ehPa/10.0; !~ use vapour pressure in kPa
+        !~ calculate 6th order polynomial as approximation     
+      UTCI_approx=Ta+&
+                ( 6.07562052D-01 )   + &
+                ( -2.27712343D-02 ) * Ta + &
+                ( 8.06470249D-04 ) * Ta*Ta + &
+                ( -1.54271372D-04 ) * Ta*Ta*Ta + &
+                ( -3.24651735D-06 ) * Ta*Ta*Ta*Ta + &
+                ( 7.32602852D-08 ) * Ta*Ta*Ta*Ta*Ta + &
+                ( 1.35959073D-09 ) * Ta*Ta*Ta*Ta*Ta*Ta + &
+                ( -2.25836520D+00 ) * va + &
+                ( 8.80326035D-02 ) * Ta*va + &
+                ( 2.16844454D-03 ) * Ta*Ta*va + &
+                ( -1.53347087D-05 ) * Ta*Ta*Ta*va + &
+                ( -5.72983704D-07 ) * Ta*Ta*Ta*Ta*va + &
+                ( -2.55090145D-09 ) * Ta*Ta*Ta*Ta*Ta*va + &
+                ( -7.51269505D-01 ) * va*va + &
+                ( -4.08350271D-03 ) * Ta*va*va + &
+                ( -5.21670675D-05 ) * Ta*Ta*va*va + &
+                ( 1.94544667D-06 ) * Ta*Ta*Ta*va*va + &
+                ( 1.14099531D-08 ) * Ta*Ta*Ta*Ta*va*va + &
+                ( 1.58137256D-01 ) * va*va*va + &
+                ( -6.57263143D-05 ) * Ta*va*va*va + &
+                ( 2.22697524D-07 ) * Ta*Ta*va*va*va + &
+                ( -4.16117031D-08 ) * Ta*Ta*Ta*va*va*va + &
+                ( -1.27762753D-02 ) * va*va*va*va + &
+                ( 9.66891875D-06 ) * Ta*va*va*va*va + &
+                ( 2.52785852D-09 ) * Ta*Ta*va*va*va*va + &
+                ( 4.56306672D-04 ) * va*va*va*va*va + &
+                ( -1.74202546D-07 ) * Ta*va*va*va*va*va + &
+                ( -5.91491269D-06 ) * va*va*va*va*va*va + &
+                ( 3.98374029D-01 ) * D_Tmrt + &
+                ( 1.83945314D-04 ) * Ta*D_Tmrt + &
+                ( -1.73754510D-04 ) * Ta*Ta*D_Tmrt + &
+                ( -7.60781159D-07 ) * Ta*Ta*Ta*D_Tmrt + &
+                ( 3.77830287D-08 ) * Ta*Ta*Ta*Ta*D_Tmrt + &
+                ( 5.43079673D-10 ) * Ta*Ta*Ta*Ta*Ta*D_Tmrt + &
+                ( -2.00518269D-02 ) * va*D_Tmrt + &
+                ( 8.92859837D-04 ) * Ta*va*D_Tmrt + &
+                ( 3.45433048D-06 ) * Ta*Ta*va*D_Tmrt + &
+                ( -3.77925774D-07 ) * Ta*Ta*Ta*va*D_Tmrt + &
+                ( -1.69699377D-09 ) * Ta*Ta*Ta*Ta*va*D_Tmrt + &
+                ( 1.69992415D-04 ) * va*va*D_Tmrt + &
+                ( -4.99204314D-05 ) * Ta*va*va*D_Tmrt + &
+                ( 2.47417178D-07 ) * Ta*Ta*va*va*D_Tmrt + &
+                ( 1.07596466D-08 ) * Ta*Ta*Ta*va*va*D_Tmrt + &
+                ( 8.49242932D-05 ) * va*va*va*D_Tmrt + &
+                ( 1.35191328D-06 ) * Ta*va*va*va*D_Tmrt + &
+                ( -6.21531254D-09 ) * Ta*Ta*va*va*va*D_Tmrt + &
+                ( -4.99410301D-06 ) * va*va*va*va*D_Tmrt + &
+                ( -1.89489258D-08 ) * Ta*va*va*va*va*D_Tmrt + &
+                ( 8.15300114D-08 ) * va*va*va*va*va*D_Tmrt + &
+                ( 7.55043090D-04 ) * D_Tmrt*D_Tmrt + &
+                ( -5.65095215D-05 ) * Ta*D_Tmrt*D_Tmrt + &
+                ( -4.52166564D-07 ) * Ta*Ta*D_Tmrt*D_Tmrt + &
+                ( 2.46688878D-08 ) * Ta*Ta*Ta*D_Tmrt*D_Tmrt + &
+                ( 2.42674348D-10 ) * Ta*Ta*Ta*Ta*D_Tmrt*D_Tmrt + &
+                ( 1.54547250D-04 ) * va*D_Tmrt*D_Tmrt + &
+                ( 5.24110970D-06 ) * Ta*va*D_Tmrt*D_Tmrt + &
+                ( -8.75874982D-08 ) * Ta*Ta*va*D_Tmrt*D_Tmrt + &
+                ( -1.50743064D-09 ) * Ta*Ta*Ta*va*D_Tmrt*D_Tmrt + &
+                ( -1.56236307D-05 ) * va*va*D_Tmrt*D_Tmrt + &
+                ( -1.33895614D-07 ) * Ta*va*va*D_Tmrt*D_Tmrt + &
+                ( 2.49709824D-09 ) * Ta*Ta*va*va*D_Tmrt*D_Tmrt + &
+                ( 6.51711721D-07 ) * va*va*va*D_Tmrt*D_Tmrt + &
+                ( 1.94960053D-09 ) * Ta*va*va*va*D_Tmrt*D_Tmrt + &
+                ( -1.00361113D-08 ) * va*va*va*va*D_Tmrt*D_Tmrt + &
+                ( -1.21206673D-05 ) * D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -2.18203660D-07 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 7.51269482D-09 ) * Ta*Ta*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 9.79063848D-11 ) * Ta*Ta*Ta*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 1.25006734D-06 ) * va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -1.81584736D-09 ) * Ta*va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -3.52197671D-10 ) * Ta*Ta*va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -3.36514630D-08 ) * va*va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 1.35908359D-10 ) * Ta*va*va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 4.17032620D-10 ) * va*va*va*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -1.30369025D-09 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 4.13908461D-10 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 9.22652254D-12 ) * Ta*Ta*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -5.08220384D-09 ) * va*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -2.24730961D-11 ) * Ta*va*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 1.17139133D-10 ) * va*va*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 6.62154879D-10 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 4.03863260D-13 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( 1.95087203D-12 ) * va*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt + &
+                ( -4.73602469D-12 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt+ &
+                ( 5.12733497D+00 ) * Pa + &
+                ( -3.12788561D-01 ) * Ta*Pa + &
+                ( -1.96701861D-02 ) * Ta*Ta*Pa + &
+                ( 9.99690870D-04 ) * Ta*Ta*Ta*Pa + &
+                ( 9.51738512D-06 ) * Ta*Ta*Ta*Ta*Pa + &
+                ( -4.66426341D-07 ) * Ta*Ta*Ta*Ta*Ta*Pa + &
+                ( 5.48050612D-01 ) * va*Pa + &
+                ( -3.30552823D-03 ) * Ta*va*Pa + &
+                ( -1.64119440D-03 ) * Ta*Ta*va*Pa + &
+                ( -5.16670694D-06 ) * Ta*Ta*Ta*va*Pa + &
+                ( 9.52692432D-07 ) * Ta*Ta*Ta*Ta*va*Pa + &
+                ( -4.29223622D-02 ) * va*va*Pa + &
+                ( 5.00845667D-03 ) * Ta*va*va*Pa + &
+                ( 1.00601257D-06 ) * Ta*Ta*va*va*Pa + &
+                ( -1.81748644D-06 ) * Ta*Ta*Ta*va*va*Pa + &
+                ( -1.25813502D-03 ) * va*va*va*Pa + &
+                ( -1.79330391D-04 ) * Ta*va*va*va*Pa + &
+                ( 2.34994441D-06 ) * Ta*Ta*va*va*va*Pa + &
+                ( 1.29735808D-04 ) * va*va*va*va*Pa + &
+                ( 1.29064870D-06 ) * Ta*va*va*va*va*Pa + &
+                ( -2.28558686D-06 ) * va*va*va*va*va*Pa + &
+                ( -3.69476348D-02 ) * D_Tmrt*Pa + &
+                ( 1.62325322D-03 ) * Ta*D_Tmrt*Pa + &
+                ( -3.14279680D-05 ) * Ta*Ta*D_Tmrt*Pa + &
+                ( 2.59835559D-06 ) * Ta*Ta*Ta*D_Tmrt*Pa + &
+                ( -4.77136523D-08 ) * Ta*Ta*Ta*Ta*D_Tmrt*Pa + &
+                ( 8.64203390D-03 ) * va*D_Tmrt*Pa + &
+                ( -6.87405181D-04 ) * Ta*va*D_Tmrt*Pa + &
+                ( -9.13863872D-06 ) * Ta*Ta*va*D_Tmrt*Pa + &
+                ( 5.15916806D-07 ) * Ta*Ta*Ta*va*D_Tmrt*Pa + &
+                ( -3.59217476D-05 ) * va*va*D_Tmrt*Pa + &
+                ( 3.28696511D-05 ) * Ta*va*va*D_Tmrt*Pa + &
+                ( -7.10542454D-07 ) * Ta*Ta*va*va*D_Tmrt*Pa + &
+                ( -1.24382300D-05 ) * va*va*va*D_Tmrt*Pa + &
+                ( -7.38584400D-09 ) * Ta*va*va*va*D_Tmrt*Pa + &
+                ( 2.20609296D-07 ) * va*va*va*va*D_Tmrt*Pa + &
+                ( -7.32469180D-04 ) * D_Tmrt*D_Tmrt*Pa + &
+                ( -1.87381964D-05 ) * Ta*D_Tmrt*D_Tmrt*Pa + &
+                ( 4.80925239D-06 ) * Ta*Ta*D_Tmrt*D_Tmrt*Pa + &
+                ( -8.75492040D-08 ) * Ta*Ta*Ta*D_Tmrt*D_Tmrt*Pa + &
+                ( 2.77862930D-05 ) * va*D_Tmrt*D_Tmrt*Pa + &
+                ( -5.06004592D-06 ) * Ta*va*D_Tmrt*D_Tmrt*Pa + &
+                ( 1.14325367D-07 ) * Ta*Ta*va*D_Tmrt*D_Tmrt*Pa + &
+                ( 2.53016723D-06 ) * va*va*D_Tmrt*D_Tmrt*Pa + &
+                ( -1.72857035D-08 ) * Ta*va*va*D_Tmrt*D_Tmrt*Pa + &
+                ( -3.95079398D-08 ) * va*va*va*D_Tmrt*D_Tmrt*Pa + &
+                ( -3.59413173D-07 ) * D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( 7.04388046D-07 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( -1.89309167D-08 ) * Ta*Ta*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( -4.79768731D-07 ) * va*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( 7.96079978D-09 ) * Ta*va*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( 1.62897058D-09 ) * va*va*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( 3.94367674D-08 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( -1.18566247D-09 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( 3.34678041D-10 ) * va*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( -1.15606447D-10 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*Pa + &
+                ( -2.80626406D+00 ) * Pa*Pa + &
+                ( 5.48712484D-01 ) * Ta*Pa*Pa + &
+                ( -3.99428410D-03 ) * Ta*Ta*Pa*Pa + &
+                ( -9.54009191D-04 ) * Ta*Ta*Ta*Pa*Pa + &
+                ( 1.93090978D-05 ) * Ta*Ta*Ta*Ta*Pa*Pa + &
+                ( -3.08806365D-01 ) * va*Pa*Pa + &
+                ( 1.16952364D-02 ) * Ta*va*Pa*Pa + &
+                ( 4.95271903D-04 ) * Ta*Ta*va*Pa*Pa + &
+                ( -1.90710882D-05 ) * Ta*Ta*Ta*va*Pa*Pa + &
+                ( 2.10787756D-03 ) * va*va*Pa*Pa + &
+                ( -6.98445738D-04 ) * Ta*va*va*Pa*Pa + &
+                ( 2.30109073D-05 ) * Ta*Ta*va*va*Pa*Pa + &
+                ( 4.17856590D-04 ) * va*va*va*Pa*Pa + &
+                ( -1.27043871D-05 ) * Ta*va*va*va*Pa*Pa + &
+                ( -3.04620472D-06 ) * va*va*va*va*Pa*Pa + &
+                ( 5.14507424D-02 ) * D_Tmrt*Pa*Pa + &
+                ( -4.32510997D-03 ) * Ta*D_Tmrt*Pa*Pa + &
+                ( 8.99281156D-05 ) * Ta*Ta*D_Tmrt*Pa*Pa + &
+                ( -7.14663943D-07 ) * Ta*Ta*Ta*D_Tmrt*Pa*Pa + &
+                ( -2.66016305D-04 ) * va*D_Tmrt*Pa*Pa + &
+                ( 2.63789586D-04 ) * Ta*va*D_Tmrt*Pa*Pa + &
+                ( -7.01199003D-06 ) * Ta*Ta*va*D_Tmrt*Pa*Pa + &
+                ( -1.06823306D-04 ) * va*va*D_Tmrt*Pa*Pa + &
+                ( 3.61341136D-06 ) * Ta*va*va*D_Tmrt*Pa*Pa + &
+                ( 2.29748967D-07 ) * va*va*va*D_Tmrt*Pa*Pa + &
+                ( 3.04788893D-04 ) * D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( -6.42070836D-05 ) * Ta*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( 1.16257971D-06 ) * Ta*Ta*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( 7.68023384D-06 ) * va*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( -5.47446896D-07 ) * Ta*va*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( -3.59937910D-08 ) * va*va*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( -4.36497725D-06 ) * D_Tmrt*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( 1.68737969D-07 ) * Ta*D_Tmrt*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( 2.67489271D-08 ) * va*D_Tmrt*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( 3.23926897D-09 ) * D_Tmrt*D_Tmrt*D_Tmrt*D_Tmrt*Pa*Pa + &
+                ( -3.53874123D-02 ) * Pa*Pa*Pa + &
+                ( -2.21201190D-01 ) * Ta*Pa*Pa*Pa + &
+                ( 1.55126038D-02 ) * Ta*Ta*Pa*Pa*Pa + &
+                ( -2.63917279D-04 ) * Ta*Ta*Ta*Pa*Pa*Pa + &
+                ( 4.53433455D-02 ) * va*Pa*Pa*Pa + &
+                ( -4.32943862D-03 ) * Ta*va*Pa*Pa*Pa + &
+                ( 1.45389826D-04 ) * Ta*Ta*va*Pa*Pa*Pa + &
+                ( 2.17508610D-04 ) * va*va*Pa*Pa*Pa + &
+                ( -6.66724702D-05 ) * Ta*va*va*Pa*Pa*Pa + &
+                ( 3.33217140D-05 ) * va*va*va*Pa*Pa*Pa + &
+                ( -2.26921615D-03 ) * D_Tmrt*Pa*Pa*Pa + &
+                ( 3.80261982D-04 ) * Ta*D_Tmrt*Pa*Pa*Pa + &
+                ( -5.45314314D-09 ) * Ta*Ta*D_Tmrt*Pa*Pa*Pa + &
+                ( -7.96355448D-04 ) * va*D_Tmrt*Pa*Pa*Pa + &
+                ( 2.53458034D-05 ) * Ta*va*D_Tmrt*Pa*Pa*Pa + &
+                ( -6.31223658D-06 ) * va*va*D_Tmrt*Pa*Pa*Pa + &
+                ( 3.02122035D-04 ) * D_Tmrt*D_Tmrt*Pa*Pa*Pa + &
+                ( -4.77403547D-06 ) * Ta*D_Tmrt*D_Tmrt*Pa*Pa*Pa + &
+                ( 1.73825715D-06 ) * va*D_Tmrt*D_Tmrt*Pa*Pa*Pa + &
+                ( -4.09087898D-07 ) * D_Tmrt*D_Tmrt*D_Tmrt*Pa*Pa*Pa + &
+                ( 6.14155345D-01 ) * Pa*Pa*Pa*Pa + &
+                ( -6.16755931D-02 ) * Ta*Pa*Pa*Pa*Pa + &
+                ( 1.33374846D-03 ) * Ta*Ta*Pa*Pa*Pa*Pa + &
+                ( 3.55375387D-03 ) * va*Pa*Pa*Pa*Pa + &
+                ( -5.13027851D-04 ) * Ta*va*Pa*Pa*Pa*Pa + &
+                ( 1.02449757D-04 ) * va*va*Pa*Pa*Pa*Pa + &
+                ( -1.48526421D-03 ) * D_Tmrt*Pa*Pa*Pa*Pa + &
+                ( -4.11469183D-05 ) * Ta*D_Tmrt*Pa*Pa*Pa*Pa + &
+                ( -6.80434415D-06 ) * va*D_Tmrt*Pa*Pa*Pa*Pa + &
+                ( -9.77675906D-06 ) * D_Tmrt*D_Tmrt*Pa*Pa*Pa*Pa + &
+                ( 8.82773108D-02 ) * Pa*Pa*Pa*Pa*Pa + &
+                ( -3.01859306D-03 ) * Ta*Pa*Pa*Pa*Pa*Pa + &
+                ( 1.04452989D-03 ) * va*Pa*Pa*Pa*Pa*Pa + &
+                ( 2.47090539D-04 ) * D_Tmrt*Pa*Pa*Pa*Pa*Pa + &
+                ( 1.48348065D-03 ) * Pa*Pa*Pa*Pa*Pa*Pa 
+      return
+      END subroutine utci_approx_calc
+
+
+!~ **********************************************
+       subroutine es_calc(ta,es)
+!~ **********************************************
+!~ calculates saturation vapour pressure over water in hPa for input air
+!temperature (ta) in celsius according to:
+!~ Hardy, R.; ITS-90 Formulations for Vapor Pressure, Frostpoint Temperature,
+!Dewpoint Temperature and Enhancement Factors in the Range -100 to 100 °C; 
+!~ Proceedings of Third International Symposium on Humidity and Moisture; edited
+!by National Physical Laboratory (NPL), London, 1998, pp. 214-221
+!~ http://www.thunderscientific.com/tech_info/reflibrary/its90formulas.pdf
+!(retrieved 2008-10-01)
+      
+      implicit none
+!
+      real ta, tk,es
+      INTEGER I
+      REAL :: g(0:7)=(/&
+                                -2.8365744E3,&
+                                -6.028076559E3,&
+                                1.954263612E1,&
+                                -2.737830188E-2,&
+                                1.6261698E-5,&
+                                7.0229056E-10,&
+                                -1.8680009E-13,&
+                                2.7150305 /)
+!      
+      tk=ta+273.15              ! air temp in K
+      es=g(7)*log(tk)
+      do i=0,6
+        es=es+g(i)*tk**(i-2)  
+      end do
+      es=exp(es)*0.01   ! *0.01: convert Pa to hPa
+!
+      return
+      END subroutine es_calc
+! WRF COMFORT end     
 !====================================================================72
 END MODULE module_sf_bep_bem
 
@@ -5703,4 +7631,17 @@ END MODULE module_sf_bep_bem
          INTEGER :: bep_bem_val_ngr_u
          bep_bem_val_ngr_u = ngr_u
       END FUNCTION bep_bem_ngr_u
-
+!WRF_COMF start
+   FUNCTION bep_bem_ncomf () RESULT (bep_bem_val_ncomf)
+         USE module_sf_bep_bem
+         IMPLICIT NONE
+         INTEGER :: bep_bem_val_ncomf
+         bep_bem_val_ncomf = ncomf
+      END FUNCTION bep_bem_ncomf
+   FUNCTION bep_bem_nz () RESULT (bep_bem_val_nz)
+         USE module_sf_bep_bem
+         IMPLICIT NONE
+         INTEGER :: bep_bem_val_nz
+         bep_bem_val_nz = nz_um
+      END FUNCTION bep_bem_nz
+!WRF_COMF end

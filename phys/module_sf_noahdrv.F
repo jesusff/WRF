@@ -96,6 +96,9 @@ CONTAINS
                   urban_map_zgrd,                                & !I multi-layer urban
                   num_urban_hi,                                 & !I multi-layer urban
                   tsk_rural_bep,                                & !H multi-layer urban
+!TSK_SAT
+                  tsk_sat,                                & !Hmulti-layer urban
+!TSK_SAT
                   trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,      & !H multi-layer urban
                   tlev_urb3d,qlev_urb3d,                        & !H multi-layer urban
                   tw1lev_urb3d,tw2lev_urb3d,                    & !H multi-layer urban
@@ -115,7 +118,11 @@ CONTAINS
                   a_u_bep,a_v_bep,a_t_bep,a_q_bep,              & !O multi-layer urban
                   a_e_bep,b_u_bep,b_v_bep,                      & !O multi-layer urban
                   b_t_bep,b_q_bep,b_e_bep,dlg_bep,              & !O multi-layer urban
-                  dl_u_bep,sf_bep,vl_bep                        &
+                  dl_u_bep,sf_bep,vl_bep,                        &
+                  tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23,    & !WRF COMFORT
+                  comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf,    & !WRF COMFORT
+                  ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz, & !WRF COMFORT
+                  history_interval    & !WRF COMFORT
 #ifdef WRF_HYDRO
                  ,sfcheadrt,INFXSRT,soldrain                    &   !O multi-layer urban
 #endif
@@ -564,7 +571,7 @@ CONTAINS
      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(OUT) :: AKMS_URB2D
 !
      REAL, DIMENSION( ims:ime, jms:jme ), INTENT(OUT) :: UST_URB2D
-     REAL, DIMENSION( ims:ime, jms:jme ), INTENT(IN) :: FRC_URB2D
+     REAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: FRC_URB2D
      INTEGER, DIMENSION( ims:ime, jms:jme ), INTENT(IN) :: UTYPE_URB2D
 
 
@@ -612,6 +619,9 @@ CONTAINS
    INTEGER, INTENT(IN  ) ::                               urban_map_zgrd
    INTEGER, INTENT(IN  ) ::                               NUM_URBAN_HI
    REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ), INTENT(INOUT) :: tsk_rural_bep
+!TSK_SAT
+   REAL, OPTIONAL, DIMENSION( ims:ime,                     jms:jme ),INTENT(INOUT) :: tsk_sat
+!TSK_SAT
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zrd, jms:jme ), INTENT(INOUT) :: trb_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zwd, jms:jme ), INTENT(INOUT) :: tw1_urb4d
    REAL, OPTIONAL, DIMENSION( ims:ime, 1:urban_map_zwd, jms:jme ), INTENT(INOUT) :: tw2_urb4d
@@ -669,6 +679,16 @@ CONTAINS
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::dlg_bep   !Height above ground
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::sf_bep  !Fraction air at the face of grid cell
    REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(INOUT) ::dl_u_bep  !Length scale
+   INTEGER, INTENT(IN  ) ::                               num_urban_ncomf !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) ::tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23 !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) ::comf_10,comf_50,comf_90 !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: lp_comf !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime,1:num_urban_ncomf, jms:jme ), INTENT(INOUT) ::hist_comf !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) :: ws_urb2d,bs_urb2d !WRF COMFORT
+   INTEGER, INTENT(IN  ) ::                               num_urban_nz !WRF COMFORT
+   REAL, OPTIONAL, DIMENSION( ims:ime,1:num_urban_nz, jms:jme ), INTENT(INOUT) ::hbuild_urb3d !WRF COMFORT
+   
+   integer, OPTIONAL,  INTENT(IN) :: history_interval !WRF COMFORT
 
 ! Local variables for multi-layer UCM (Martilli et al. 2002)
    REAL,    DIMENSION( its:ite, jts:jte ) :: HFX_RURAL,LH_RURAL,GRDFLX_RURAL ! ,RN_RURAL
@@ -680,9 +700,14 @@ CONTAINS
 !   REAL,    DIMENSION( ims:ime, jms:jme ) :: ALBEDO_URB,EMISS_URB,UMOM,VMOM,UST
    REAL, DIMENSION(its:ite,jts:jte) ::EMISS_URB
    REAL, DIMENSION(its:ite,jts:jte) :: RL_UP_URB
+!TSK_SAT
+   REAL, DIMENSION(its:ite,jts:jte) :: RL_SAT_URB
+!TSK_SAT
    REAL, DIMENSION(its:ite,jts:jte) ::RS_ABS_URB
    REAL, DIMENSION(its:ite,jts:jte) ::GRDFLX_URB
-   REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RS_ABS_TOT,UMOM,VMOM
+!TSK_SAT
+   REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RL_SAT_TOT,RS_ABS_TOT,UMOM,VMOM
+!TSK_SAT
    REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB, CMGR_URB, CHGR_URB
    REAL :: frc_urb,lb_urb
    REAL :: check 
@@ -1595,6 +1620,7 @@ CONTAINS
          do i=its,ite
             EMISS_URB(i,j)=0.
             RL_UP_URB(i,j)=0.
+            RL_SAT_URB(i,j)=0.
             RS_ABS_URB(i,j)=0.
             GRDFLX_URB(i,j)=0.
             b_q_bep(i,kts:kte,j)=0.
@@ -1628,9 +1654,11 @@ CONTAINS
          do i=its,ite
             EMISS_URB(i,j)=0.
             RL_UP_URB(i,j)=0.
+            RL_SAT_URB(i,j)=0.
             RS_ABS_URB(i,j)=0.
             GRDFLX_URB(i,j)=0.
             b_q_bep(i,kts:kte,j)=0.
+                if(dt.lt.3.and.i.eq.45.and.j.eq.45)write(*,*)'in noahdrv',frc_urb2d(i,j)
          end do
          end do
         
@@ -1657,7 +1685,11 @@ CONTAINS
                 a_e_bep,b_u_bep,b_v_bep,                               &
                 b_t_bep,b_e_bep,b_q_bep,dlg_bep,                       &
                 dl_u_bep,sf_bep,vl_bep,                                &
-                rl_up_urb,rs_abs_urb,emiss_urb,grdflx_urb,qv3d,        &
+                rl_up_urb,rl_sat_urb,rs_abs_urb,emiss_urb,grdflx_urb,qv3d,        &
+                tmr_11,tmr_12,tmr_13,tmr_21,tmr_22,tmr_23,             & !WRF COMFORT
+                comf_10,comf_50,comf_90,lp_comf,hist_comf,num_urban_ncomf,                       & !WRF COMFORT
+                ws_urb2d,bs_urb2d,hbuild_urb3d,num_urban_nz,           & !WRF COMFORT
+                history_interval,                                      & !WRF COMFORT
                 ids,ide, jds,jde, kds,kde,                             &
                 ims,ime, jms,jme, kms,kme,                             &
                 its,ite, jts,jte, kts,kte )
@@ -1714,9 +1746,15 @@ CONTAINS
            IF (FRC_URB2D(I,J).GT.0.) THEN
               rl_up_rural=-emiss_rural(i,j)*sigma_sb*(tsk_rural(i,j)**4.)-(1.-emiss_rural(i,j))*glw(i,j)
               rl_up_tot=(1.-frc_urb2d(i,j))*rl_up_rural+frc_urb2d(i,j)*rl_up_urb(i,j)   
+!TSK_SAT
+              rl_sat_tot=(1.-frc_urb2d(i,j))*rl_up_rural+frc_urb2d(i,j)*rl_sat_urb(i,j)
+!TSK_SAT
               emiss(i,j)=(1.-frc_urb2d(i,j))*emiss_rural(i,j)+frc_urb2d(i,j)*emiss_urb(i,j)
               ts_urb2d(i,j)=(max(0.,(-rl_up_urb(i,j)-(1.-emiss_urb(i,j))*glw(i,j))/emiss_urb(i,j)/sigma_sb))**0.25
               tsk(i,j)=(max(0., (-1.*rl_up_tot-(1.-emiss(i,j))*glw(i,j) )/emiss(i,j)/sigma_sb))**.25
+!TSK_SAT
+              tsk_sat(i,j)=(max(0.,(-1.*rl_sat_tot-(1.-emiss(i,j))*glw(i,j))/emiss(i,j)/sigma_sb))**.25
+!TSK_SAT
            rs_abs_tot=(1.-frc_urb2d(i,j))*swdown(i,j)*(1.-albedo(i,j))+frc_urb2d(i,j)*rs_abs_urb(i,j)  
           if(swdown(i,j).gt.0.)then
            albedo(i,j)=1.-rs_abs_tot/swdown(i,j)
@@ -1729,6 +1767,10 @@ CONTAINS
 !        lh(i,j)=(1.-frc_urb2d(i,j))*qfx_rural(i,j)*xlv
          lh(i,j)=qfx(i,j)*xlv
          HFX(I,J) = HFX_URB(I,J)+(1-FRC_URB2D(I,J))*HFX_RURAL(I,J)         ![W/m/m]
+  !         if(HFX(i,j).ne.HFX(i,j))then
+  !            write(*,*)'hfx not a number in noahdrv',i,j,hfx_urb(i,j),hfx_rural(i,j),frc_urb2d(i,j)
+  !            stop
+  !         endif
             SH_URB2D(I,J)    = HFX_URB(I,J)/FRC_URB2D(I,J)
             LH_URB2D(I,J)    = qfx_urb(i,j)*xlv
             G_URB2D(I,J)     = grdflx_urb(i,j)
@@ -2996,9 +3038,12 @@ SUBROUTINE lsm_mosaic(DZ8W,QV3D,P8W3D,T3D,TSK,                      &
 !   REAL,    DIMENSION( ims:ime, jms:jme ) :: ALBEDO_URB,EMISS_URB,UMOM,VMOM,UST
    REAL, DIMENSION(its:ite,jts:jte) ::EMISS_URB
    REAL, DIMENSION(its:ite,jts:jte) :: RL_UP_URB
+!TSK_SAT
+   REAL, DIMENSION(its:ite,jts:jte) :: RL_SAT_URB
+!TSK_SAT
    REAL, DIMENSION(its:ite,jts:jte) ::RS_ABS_URB
    REAL, DIMENSION(its:ite,jts:jte) ::GRDFLX_URB
-   REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RS_ABS_TOT,UMOM,VMOM
+   REAL :: SIGMA_SB,RL_UP_RURAL,RL_UP_TOT,RL_SAT_TOT,RS_ABS_TOT,UMOM,VMOM
    REAL :: CMR_URB, CHR_URB, CMC_URB, CHC_URB, CMGR_URB, CHGR_URB
    REAL :: frc_urb,lb_urb
    REAL :: check 

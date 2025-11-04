@@ -64,6 +64,10 @@ use module_wrf_error
    REAL, ALLOCATABLE, DIMENSION(:) :: TRLEND_TBL, TBLEND_TBL, TGLEND_TBL
    REAL, ALLOCATABLE, DIMENSION(:) :: AKANDA_URBAN_TBL
 !for BEP
+! WRF COMFORT start
+   INTEGER :: THERM_COMF_TBL
+   REAL, ALLOCATABLE, DIMENSION(:) :: MET_COMF_TBL,CLO_COMF_TBL,WME_COMF_TBL,WEIGHT_COMF_TBL,HEIGHT_COMF_TBL
+! WRF COMFORT end
 
    ! MAXDIRS :: The maximum number of street directions we're allowed to define
    INTEGER, PARAMETER :: MAXDIRS = 3
@@ -2164,6 +2168,19 @@ ENDIF
             if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating PV_FRAC_ROOF_TBL in urban_param_init')
             ALLOCATE( GR_FRAC_ROOF_TBL(ICATE), stat=allocate_status )
             if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating GR_FRAC_ROOF_TBL in urban_param_init')
+! WRF COMFORT start
+            ALLOCATE( MET_COMF_TBL(ICATE), stat=allocate_status )
+            if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating MET_COMF_TBL in urban_param_init')
+            ALLOCATE( CLO_COMF_TBL(ICATE), stat=allocate_status )
+            if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating CLO_COMF_TBL in urban_param_init')
+            ALLOCATE( WME_COMF_TBL(ICATE), stat=allocate_status )
+            if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating WME_COMF_TBL in urban_param_init')
+            ALLOCATE( WEIGHT_COMF_TBL(ICATE), stat=allocate_status )
+            if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating WEIGTH_COMF_TBL in urban_param_init')
+            ALLOCATE( HEIGHT_COMF_TBL(ICATE), stat=allocate_status )
+            if(allocate_status /= 0) CALL wrf_error_fatal('Error allocating HEIGTH_COMF_TBL in urban_param_init')
+! WRF COMFORT end
+
 
          endif
          numdir_tbl = 0
@@ -2367,6 +2384,23 @@ ENDIF
          read(string(indx+1:),*) gr_flag_tbl
       else if (name == "GR_TYPE") then
          read(string(indx+1:),*) gr_type_tbl
+
+!WRF COMFORT start
+      else if (name == "THERM_COMF") then
+         read(string(indx+1:),*) therm_comf_tbl
+         write(*,*)'therm_comf_tbl=',therm_comf_tbl
+      else if (name == "MET_COMF") then
+         read(string(indx+1:),*) met_comf_tbl(1:icate)
+         write(*,*)'met_comf_tbl=',met_comf_tbl
+      else if (name == "CLO_COMF") then
+         read(string(indx+1:),*) clo_comf_tbl(1:icate)
+      else if (name == "WME_COMF") then
+         read(string(indx+1:),*) WME_comf_tbl(1:icate)
+      else if (name == "WEIGHT_COMF") then
+         read(string(indx+1:),*) weight_comf_tbl(1:icate)
+      else if (name == "HEIGHT_COMF") then
+         read(string(indx+1:),*) height_comf_tbl(1:icate)
+!WRF COMFORT end
 
 !end BEP         
       else
